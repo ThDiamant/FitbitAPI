@@ -7,3 +7,12 @@ To do:
    For example, we need to think of what the time unit for the time series will be, we need to decided on the data types, etc.
 2) Save the data in MongoDB.
 3) Create 10 interactive visualizations with Streamlit.
+
+## Usefull links
+
+
+Documentation for activity timeseries: https://dev.fitbit.com/build/reference/web-api/activity-timeseries/
+
+Fitbit WebAPI Explorer: https://dev.fitbit.com/build/reference/web-api/explore/
+
+Fitbit init tutorial: https://towardsdatascience.com/using-the-fitbit-web-api-with-python-f29f119621ea
