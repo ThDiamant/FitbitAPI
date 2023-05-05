@@ -46,6 +46,37 @@ def connect_to_db():
         raise Exception(f"Collection {DATA_COLLECTION_NAME} does not exist.")
 
 
+def to_date(x):
+    """
+    Returns x as a datetime.date() object.
+    """
+    global DATE_FORMAT
+    if isinstance(x, str):
+        # If input is a string, parse it as a date
+        try:
+            return dt.datetime.strptime(x, "%Y-%m-%d").date()
+        except:
+            return dt.datetime.strptime(x, DATE_FORMAT).date()
+    elif isinstance(x, dt.date):
+        # If input is already a date object, return it
+        return x
+    else:
+        # Otherwise, raise an error
+        raise ValueError("Input must be a string or datetime.date object")
+
+
+def daterange(start_date, end_date):
+    """
+    Inputs:
+        start_date, end_date: Can be either string or datetime.date
+
+    Returns all dates in [start_date, end_date] as datetime.date objects.
+    """
+    start_date = to_date(start_date)
+    end_date = to_date(end_date)
+    for n in range(int((end_date - start_date).days)):
+        yield start_date + dt.timedelta(n)
+
 def to_datetime(date, time=""):
     """
     Converts date (str or datetime.date) into datetime.datetime. If a time argument is given, it includes it
@@ -194,6 +225,7 @@ def get_df(dType=None, date=None, addDateTimeCols=False):
     if addDateTimeCols:
         df = add_datetime_columns(df)
     return df
+
 
 # Connect to MongoDB collection where the data are stored
 fitbitCollection = connect_to_db()
@@ -399,7 +431,9 @@ with col2:
     st.plotly_chart(avg_min_activity_fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Plot time series for sleep level data
+# Plot time series for sleep and activity level data
+
+# Functions for sleep level data ----------------------------------------
 def get_sleep_start_end(dates):
     """
     Input:
@@ -488,11 +522,10 @@ def create_sleep_level_ts_df(sleepLevelTimeSeries):
     return sleepLevelTimeSeries_df
 
 
-def get_sleep_level_timeseries_data(sleepStartEnd_list):
+def get_sleep_level_timeseries_df(sleepStartEnd):
     """
     Input:
-        - sleepStartEnd_list <list>: List of dictionaries each containing three keys
-                                     (date, sleep-startTime, sleep-endTime).
+        - sleepStartEnd <dict>: Dict containing three keys (date, sleep-startTime, sleep-endTime).
 
     Returns for each element of the input list the time series of sleep levels. First,
     the MongoDB is queried to get the relevant data. The data we get from Mongo contain
@@ -502,29 +535,27 @@ def get_sleep_level_timeseries_data(sleepStartEnd_list):
     """
 
     dType = 'sleepLevelsData-data'
-    # For each dictionary in sleepStartEnd_list (i.e. for each date)
-    for sleepStartEnd in sleepStartEnd_list:
-        # Create the query that will give us the time series data
-        sleepStartTime = sleepStartEnd['sleep-startTime']
-        sleepEndTime = sleepStartEnd['sleep-endTime']
-        query = {
-            'type': dType,
-            'data.dateTime': {
-                '$gte': sleepStartTime,
-                '$lte': sleepEndTime
-            }
+
+    # Create the query that will give us the time series data
+    sleepStartTime = sleepStartEnd['sleep-startTime']
+    sleepEndTime = sleepStartEnd['sleep-endTime']
+    query = {
+        'type': dType,
+        'data.dateTime': {
+            '$gte': sleepStartTime,
+            '$lte': sleepEndTime
         }
+    }
 
-        # Get time series with time spent in each sleep level
-        query_result = fitbitCollection.find(query)
+    # Get time series with time spent in each sleep level
+    query_result = fitbitCollection.find(query)
 
-        # Expand the time series
-        sleepLevelTimeSeries = expand_time_series(query_result, step=10)
-        # Create dataframe for expanded time serires
-        sleepLevelTimeSeries_df = create_sleep_level_ts_df(sleepLevelTimeSeries)
+    # Expand the time series
+    sleepLevelTimeSeries = expand_time_series(query_result, step=10)
+    # Create dataframe for expanded time serires
+    sleepLevelTimeSeries_df = create_sleep_level_ts_df(sleepLevelTimeSeries)
 
-        # Plot the timeseries
-        plot_sleep_level_time_series(sleepLevelTimeSeries_df)
+    return sleepLevelTimeSeries_df
 
 
 def plot_sleep_level_time_series(sleepLevelTimeSeries_df):
@@ -552,11 +583,138 @@ def plot_sleep_level_time_series(sleepLevelTimeSeries_df):
     # fig.show()
     return fig
 
-# date = testDate
-# dates = [date]
-# sleepStartEnd_list = get_sleep_start_end(dates)
-# sleepStartEnd_list
-# fig = get_sleep_level_timeseries_data(sleepStartEnd_list)
+
+# Functions for activity level data ----------------------------------------
+def get_activity_detail_timeseries(date):
+    dateTimeStart = dt.datetime.strptime(date, '%Y-%m-%d')
+    dateTimeEnd = dt.datetime.strptime(date, '%Y-%m-%d')
+    t = dt.time(hour=23, minute=59)
+    dateTimeEnd = dt.datetime.combine(dateTimeEnd.date(), t)
+
+    activityTypeTimeseries = {}
+    for dType in dTypes:
+
+        query = {
+            'type': dType,
+            'data.dateTime': {
+                '$gte': dateTimeStart,
+                '$lte': dateTimeEnd
+            }
+        }
+
+        # Get time series with time spent in each sleep level
+        query_result = fitbitCollection.find(query)
+        activityTimeseries = []
+        for doc in query_result:
+            activityType = doc['type'].split('-')[0].replace('minutes', '').strip()
+            docData = doc['data']
+
+            dateTime = docData['dateTime']
+            minutes = docData['value']
+            if minutes != 0:
+                # First element is zero so that the first value is the datetime when level
+                # was initially entered (i.e. dateTime)
+                timePeriods = [0] + [1] * (minutes - 1)
+                for min in timePeriods:
+                    dateTime += dt.timedelta(minutes=min)
+                    dataPoint = (dateTime, activityType)
+                    activityTimeseries.append(dataPoint)
+            else:
+                continue
+        activityTypeTimeseries[activityType] = activityTimeseries
+
+    fullActivityTimeseries = []
+    for key in activityTypeTimeseries.keys():
+        fullActivityTimeseries += activityTypeTimeseries[key]
+
+    return fullActivityTimeseries
+
+
+def get_activity_timeseries_df(fullActivityTimeseries):
+    activity_timeseries_df = pd.DataFrame(fullActivityTimeseries, columns=["dateTime", "activityLevel"]).sort_values(
+        by='dateTime')
+    # Change level names
+    new_level_names = {
+        "Sedentary": "Sedentary",
+        "LightlyActive": "Lightly Active",
+        "FairlyActive": "Fairly Active",
+        "VeryActive": "Very Active"
+    }
+    activity_timeseries_df["activityLevel"] = activity_timeseries_df["activityLevel"].apply(
+        lambda x: new_level_names[x])
+    # Define sleepStage as a categorical variable
+    cat_dtype = pd.CategoricalDtype(
+        categories=['Sedentary', 'Lightly Active', 'Fairly Active', 'Very Active'], ordered=True)
+    activity_timeseries_df['activityLevel'] = activity_timeseries_df['activityLevel'].astype(cat_dtype)
+    # Create numeric column for sleep stages for plotting
+    activity_timeseries_df['activityLevelNum'] = activity_timeseries_df['activityLevel'].cat.codes
+
+    return activity_timeseries_df
+
+
+def plot_activity_level_timeseries(activity_timeseries_df):
+    colors = {'Sedentary': 'red', 'Lightly Active': 'lightblue', 'Fairly Active': 'blue', 'Very Active': 'darkblue'}
+
+    fig = px.scatter(activity_timeseries_df, x="dateTime", y="activityLevelNum",
+                     color="activityLevel", color_discrete_map=colors)
+
+    # Sleep date
+    date = activity_timeseries_df['dateTime'].iloc[0].strftime("%d %B %Y")
+
+    fig.update_layout(
+        title=f'Activity Levels for {date}',
+        xaxis=dict(title='Time'),
+        yaxis=dict(title='Activity Level',
+                   tickmode='array',
+                   tickvals=[0, 1, 2, 3],
+                   ticktext=['Sedentary', 'Lightly Active', 'Fairly Active', 'Very Active']),
+        plot_bgcolor='white',
+        height=500
+    )
+
+    # fig.show()
+    return fig
+
+
+start_date = to_date(START_DATE)
+end_date = to_date(END_DATE)
+
+dTypes = ['minutesSedentary-intraday',
+          'minutesLightlyActive-intraday',
+          'minutesFairlyActive-intraday',
+          'minutesVeryActive-intraday']
+
+# Define date widget
+date = st.date_input(
+    label=":calendar: Date selection",
+    value=start_date)
+
+# Make sure the selected date is within the correct limits
+if date < start_date:
+    st.write(f":exclamation: Selected date cannot be before {start_date.strftime(DATE_FORMAT)}."
+             f"Please select another date.:exclamation:")
+elif date > end_date:
+    st.write(f":exclamation: Selected date cannot be after {end_date.strftime(DATE_FORMAT)}. "
+             f"Please select another date.:exclamation:")
+else:
+    # Plot sleep levels time series ------------------------------------------------------------------------------
+    # Here the functions are kind of used not as they are suppossed to
+    # The functions where developed to create a list of dataframes with all the data, so here we only use them for
+    # one date.
+    dates = [date]
+    sleepStartEnd_list = get_sleep_start_end(dates)
+    sleepStartEnd = sleepStartEnd_list[0]
+    sleepLevelTimeSeries_df = get_sleep_level_timeseries_df(sleepStartEnd)
+    # Plot the timeseries
+    fig = plot_sleep_level_time_series(sleepLevelTimeSeries_df)
+    st.plotly_chart(fig.to_dict())
+
+    # Plot activity level time series ------------------------------------------------------------------------------
+    activityDate = date.strftime('%Y-%m-%d')
+    fullActivityTimeseries = get_activity_detail_timeseries(activityDate)
+    activity_timeseries_df = get_activity_timeseries_df(fullActivityTimeseries)
+    fig = plot_activity_level_timeseries(activity_timeseries_df)
+    st.plotly_chart(fig.to_dict())
 
 
 """
