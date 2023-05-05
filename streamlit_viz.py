@@ -4,6 +4,7 @@ import pandas as pd
 import pymongo as mongo
 import plotly.express as px
 import plotly.graph_objs as go
+import plotly.graph_objects as go
 
 # Options to be able to see all columns when printing
 pd.options.display.width= None
@@ -11,9 +12,22 @@ pd.options.display.max_columns= None
 pd.set_option('display.max_rows', 3000)
 pd.set_option('display.max_columns', 3000)
 
+# Set streamlit page width
+st.markdown(
+    """
+    <style>
+    .main {
+        max-width: 1600;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 USER_UUID = "3cc4e2ee-8c2f-4c25-955b-fe7f6ffcbe44"
 DB_NAME = "fitbit"
 DATA_COLLECTION_NAME = "fitbitCollection"
+DATE_FORMAT = "%d %B %Y"
 
 
 def connect_to_db():
@@ -85,6 +99,60 @@ def load_data(dType=None, date=None):
     return fitbitCollection.find(myquery)
 
 
+def get_min_max_dates():
+    """
+    This function goes through all the documents in our MongoDb collection and finds the
+    min and max dates we have data for. We use the USER_UUID to query the db since we
+    only have data for one user.
+    """
+    global USER_UUID
+    global DATE_FORMAT
+
+    fitbitCollection = connect_to_db()
+    # Get all distinct values of the 'type' key in each document
+    distinctTypes = fitbitCollection.distinct("type")
+
+    # Get all the data
+    myquery = {'id': USER_UUID}
+    query_result = list(fitbitCollection.find(myquery))
+
+    # Create dictionary that for each 'type' contains all the datetime objects under 'data'
+    dateTimes = {}
+    for dType in distinctTypes:
+        dateTimes[dType] = []
+        for doc in query_result:
+            if 'intraday' not in doc['type'].lower():
+                dateTimes[dType].append(doc['data']['dateTime'])
+
+    # For each 'type' get the earliest and latest date we have data for
+    minMaxDates = {}
+    for dType in dateTimes.keys():
+        minMaxDates[dType] = {
+            'min': min(dateTimes[dType]).strftime('%Y-%m-%d'),
+            'max': max(dateTimes[dType]).strftime('%Y-%m-%d')
+        }
+
+    # Get the ealiest date for each key in a list and convert to set to remove duplicates
+    minDates = set([minMaxDates[dType]['min'] for dType in minMaxDates.keys()])
+    # Same for latest date
+    maxDates = set([minMaxDates[dType]['max'] for dType in minMaxDates.keys()])
+
+    # If there is only one min date then return it else raise an Exception
+    if len(minDates) == 1:
+        minDate = dt.datetime.strptime(next(iter(minDates)), '%Y-%m-%d')
+        minDate = minDate.strftime(DATE_FORMAT)
+    else:
+        raise Exception(f"minDates contains more than 1 element: {minDates}")
+
+    if len(maxDates) == 1:
+        maxDate = dt.datetime.strptime(next(iter(maxDates)), '%Y-%m-%d')
+        maxDate = maxDate.strftime(DATE_FORMAT)
+    else:
+        raise Exception(f"maxDates contains more than 1 element: {maxDates}")
+
+    return minDate, maxDate
+
+
 def add_datetime_columns(df):
     if "dateTime" in df.columns:
         df["month"] = df["dateTime"].dt.month
@@ -131,9 +199,382 @@ def get_df(dType=None, date=None, addDateTimeCols=False):
 fitbitCollection = connect_to_db()
 distinctTypes = fitbitCollection.distinct("type")
 
+START_DATE, END_DATE = get_min_max_dates()
+# Number of days considered
+NUM_DAYS = (dt.datetime.strptime(END_DATE, DATE_FORMAT) - dt.datetime.strptime(START_DATE, DATE_FORMAT)).days
+print(START_DATE, END_DATE, NUM_DAYS)
+
+# ----------------------------------------------------------------------------------------------------------------------
 # Streamlit Dashboard title
 st.title('Fitbit Sleep-Activity Insights')
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Sleep - Numeric indicators
+
+# Define the slider widget for the numeric indicators
+period = st.sidebar.slider(label='Number of days',
+                           min_value=1,
+                           max_value=NUM_DAYS,
+                           value=NUM_DAYS,
+                           step=1)
+
+# ----- Avg sleep duration (total)
+def get_avg_sleep_duration(period):
+    dType = 'sleep-duration'
+    sleep_duration_df = get_df(dType=dType)
+    # Filter based on the selected period
+    sleep_duration_df = sleep_duration_df.iloc[-period:]
+
+    # Convert sleep duration from ms to hours
+    sleep_duration_df['value'] = sleep_duration_df['value'] / 3600000
+    tot_avg_sleep_duration = round(sleep_duration_df['value'].mean(), 1)
+    return tot_avg_sleep_duration
+
+tot_avg_sleep_duration = get_avg_sleep_duration(period)
+print(tot_avg_sleep_duration)
+
+
+# ----- Sleep start time (most common one)
+def get_most_common_sleep_start_time(period):
+    dType = 'sleep-startTime'
+    sleep_stime_df = get_df(dType=dType)
+    # Filter based on the selected period
+    sleep_stime_df = sleep_stime_df.iloc[-period:]
+    # Create column containing the hour
+    sleep_stime_df['hour'] = sleep_stime_df['value'].dt.hour
+    # Get the count of each hour
+    hour_counts_df = (sleep_stime_df
+                      .groupby('hour')
+                      .count()
+                      .sort_values(by='value', ascending=False))
+    # nNights is the number of nights with sleep start time equal to the most common hour
+    most_common_hour, nNights = hour_counts_df['value'].head(1).index[0], hour_counts_df['value'].iloc[0]
+
+    return most_common_hour, nNights
+
+most_common_hour, nNights = get_most_common_sleep_start_time(period)
+print(most_common_hour, nNights, period)
+
+# ----- Avg sleep efficiency
+def get_avg_sleep_eff(period):
+    dType = 'sleep-efficiency'
+    sleep_efficiency_df = get_df(dType=dType)
+    # Filter based on the selected period
+    sleep_efficiency_df = sleep_efficiency_df.iloc[-period:]
+    avg_sleep_efficiency = round(sleep_efficiency_df['value'].mean(), 1)
+
+    return avg_sleep_efficiency
+
+avg_sleep_efficiency = get_avg_sleep_eff(period)
+
+# ----- Avg number of steps
+def get_avg_steps(period):
+    dType = 'steps'
+    steps_df = get_df(dType=dType)
+    # Filter based on the selected period
+    steps_df = steps_df.iloc[-period:]
+    avg_steps = int(round(steps_df['value'].mean(), 0))
+
+    return avg_steps
+
+avg_steps = get_avg_steps(period)
+
+
+# Show the metrics side by side
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric(label=':sleeping: Avg sleep duration',
+              value=f'{tot_avg_sleep_duration} hours')
+with col2:
+    st.metric(label=f':new_moon_with_face: Most common sleep hour',
+              value=f'{most_common_hour} a.m.')
+with col3:
+    st.metric(label=f':ok_hand: Avg sleep efficiency',
+              value=f'{avg_sleep_efficiency} %')
+with col4:
+    st.metric(label=f':walking: Avg steps',
+              value=f'{avg_steps}')
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Bar chart - Avg number of minutes in each stage (total)
+def avg_num_min_each_stage_ser(period):
+    dType = "sleepSummary-stages"
+    sleep_level_summary_df = get_df(dType=dType)
+    # Filter based on the selected period
+    sleep_level_summary_df = sleep_level_summary_df.iloc[-period:]
+    # Get series with total avg time (min) spent in each sleep stage
+    avg_min_stage_ser = (sleep_level_summary_df
+                        .drop('dateTime', axis=1)
+                        .mean()
+                        .round(0)
+                        .astype(int))
+
+    return avg_min_stage_ser
+
+avg_min_stage_df = avg_num_min_each_stage_ser(period)
+
+def plot_bar_from_ser(ser, title, x_axis_title, y_axis_title):
+    # Create a bar chart using plotly.graph_objects
+    fig = go.Figure(go.Bar(x=ser.values,
+                                         y=ser.index,
+                                         orientation='h',
+                                         marker_color='green'))
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_axis_title,
+        yaxis_title=y_axis_title,
+        font=dict(family='Arial', size=12)
+    )
+
+    return fig
+
+# Plot
+title = 'Avg time spent in each Sleep Stage'
+x_axis_title = 'Minutes'
+y_axis_title = 'Sleep Stage'
+avg_min_stage_fig = plot_bar_from_ser(avg_min_stage_df, title, x_axis_title, y_axis_title)
+
+# st.plotly_chart(avg_min_stage_fig)
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Bar chart - Avg minutes in different activity zones
+
+def get_activity_df():
+    # Get data
+    dType = 'minutesSedentary'
+    minutesSedentary_df = get_df(dType=dType)
+    minutesSedentary_df = minutesSedentary_df.rename(columns={'value': 'Sedentary'})
+
+    dType = 'minutesLightlyActive'
+    minutesLightlyActive_df = get_df(dType=dType)
+    minutesLightlyActive_df = minutesLightlyActive_df.rename(columns={'value': 'Lightly active'})
+
+    dType = 'minutesFairlyActive'
+    minutesFairlyActive_df = get_df(dType=dType)
+    minutesFairlyActive_df = minutesFairlyActive_df.rename(columns={'value': 'Fairly active'})
+
+    dType = 'minutesVeryActive'
+    minutesVeryActive_df = get_df(dType=dType)
+    minutesVeryActive_df = minutesVeryActive_df.rename(columns={'value': 'Very active'})
+
+    # Merge data
+    activity_df = minutesSedentary_df.merge(minutesLightlyActive_df, on='dateTime', how='left')
+    activity_df = activity_df.merge(minutesFairlyActive_df, on='dateTime', how='left')
+    activity_df = activity_df.merge(minutesVeryActive_df, on='dateTime', how='left')
+
+    activity_df['Sedentary'] = activity_df['Sedentary'].astype(int)
+    activity_df['Lightly active'] = activity_df['Lightly active'].astype(int)
+    activity_df['Fairly active'] = activity_df['Fairly active'].astype(int)
+    activity_df['Very active'] = activity_df['Very active'].astype(int)
+
+    return activity_df
+
+def get_avg_min_activity_ser(period):
+    activity_df = get_activity_df()
+
+    # Filter based on the selected period
+    activity_df = activity_df.iloc[-period:]
+    avg_min_activity_ser = (activity_df
+                            .drop('dateTime', axis=1)
+                            .mean().round(0)
+                            .astype(int))
+
+    return avg_min_activity_ser
+
+avg_min_activity_ser = get_avg_min_activity_ser(period)
+
+# Plot
+title = 'Avg time spent in each Activity Type'
+x_axis_title = 'Minutes'
+y_axis_title = 'Activity Type'
+avg_min_activity_fig = plot_bar_from_ser(avg_min_activity_ser, title, x_axis_title, y_axis_title)
+
+# st.plotly_chart(avg_min_activity_fig)
+
+# Show the metrics side by side
+col1, col2 = st.columns(2)
+with col1:
+    st.plotly_chart(avg_min_stage_fig)
+with col2:
+    st.plotly_chart(avg_min_activity_fig)
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Plot time series for sleep level data
+def get_sleep_start_end(dates):
+    """
+    Input:
+        - dates <list>: Contains the dates for which we want to gather data.
+
+    Returns a list of dictionaries, where each dictionary contains the sleep start and end time
+    for the given date.
+    """
+
+    dTypes = ['sleep-startTime', 'sleep-endTime']
+    sleepStartEnd_list = []
+    for date in dates:
+        sleepStartEnd = {}
+        sleepStartEnd["date"] = date
+        for dType in dTypes:
+            query_result = load_data(dType=dType, date=date)
+            query_sample_data = query_result[0]['data']
+
+            sleepStartEnd[dType] = query_sample_data['value']
+
+        sleepStartEnd_list.append(sleepStartEnd)
+
+    return sleepStartEnd_list
+
+
+def expand_time_series(query_result, step=10):
+    """
+    Inputs:
+        - query_result: The result of querying the MongoDB to get the data we want.
+        - step <int>:
+    Since the query_result contains information in the form
+    (<time the sleep level was entered>, <sleep level>, <duration in the sleep level (sec)>)
+    we use this information to get a proper time series of the form (<dateTime>, <sleep level>).
+    The expansion takes place so that for each stage, we add a point every step seconds.
+    """
+
+    # Construct sleep level time series
+    sleepLevelTimeSeries = []
+    for doc in query_result:
+        docData = doc['data']
+        # Sleep level
+        level = docData['level']
+        # Datetime when level was initially entered
+        dateTime = docData['dateTime']
+        # Total seconds spent in level
+        totalSecInLevel = docData['value']
+        # Create new point every sec seconds
+        step = 10
+        # Number of points that will be added in the time series
+        nTimePeriods = int(totalSecInLevel / step) - 1
+
+        # First element is zero so that the first value is the datetime when level
+        # was initially entered (i.e. dateTime)
+        timePeriods = [0] + [step] * (nTimePeriods)
+        for sec in timePeriods:
+            # print(f"sec: {sec}")
+            dateTime += dt.timedelta(seconds=sec)
+            # print(type(dateTime))
+            dataPoint = (dateTime, level)
+            sleepLevelTimeSeries.append(dataPoint)
+
+    return sleepLevelTimeSeries
+
+
+def create_sleep_level_ts_df(sleepLevelTimeSeries):
+    """
+    Creates a dataframe from the sleep level time series.
+    """
+    # Create sleep level time series dataframe
+    sleepLevelTimeSeries_df = pd.DataFrame(sleepLevelTimeSeries, columns=["dateTime", "sleepStage"])
+    # Change level names
+    new_level_names = {
+        "wake": "Awake",
+        "rem": "REM",
+        "light": "Light",
+        "deep": "Deep"
+    }
+    sleepLevelTimeSeries_df["sleepStage"] = sleepLevelTimeSeries_df["sleepStage"].apply(lambda x: new_level_names[x])
+    # Define sleepStage as a categorical variable
+    cat_dtype = pd.CategoricalDtype(
+        categories=['Deep', 'Light', 'REM', 'Awake'], ordered=True)
+    sleepLevelTimeSeries_df['sleepStage'] = sleepLevelTimeSeries_df['sleepStage'].astype(cat_dtype)
+    # Create numeric column for sleep stages for plotting
+    sleepLevelTimeSeries_df['sleepStageNum'] = sleepLevelTimeSeries_df['sleepStage'].cat.codes
+
+    return sleepLevelTimeSeries_df
+
+
+def get_sleep_level_timeseries_data(sleepStartEnd_list):
+    """
+    Input:
+        - sleepStartEnd_list <list>: List of dictionaries each containing three keys
+                                     (date, sleep-startTime, sleep-endTime).
+
+    Returns for each element of the input list the time series of sleep levels. First,
+    the MongoDB is queried to get the relevant data. The data we get from Mongo contain
+    the information as (<time the sleep level was entered>, <sleep level>,
+    <duration in the sleep level (sec)>). For this reason, we then expand the time series
+    with the expand_time_series() function.
+    """
+
+    dType = 'sleepLevelsData-data'
+    # For each dictionary in sleepStartEnd_list (i.e. for each date)
+    for sleepStartEnd in sleepStartEnd_list:
+        # Create the query that will give us the time series data
+        sleepStartTime = sleepStartEnd['sleep-startTime']
+        sleepEndTime = sleepStartEnd['sleep-endTime']
+        query = {
+            'type': dType,
+            'data.dateTime': {
+                '$gte': sleepStartTime,
+                '$lte': sleepEndTime
+            }
+        }
+
+        # Get time series with time spent in each sleep level
+        query_result = fitbitCollection.find(query)
+
+        # Expand the time series
+        sleepLevelTimeSeries = expand_time_series(query_result, step=10)
+        # Create dataframe for expanded time serires
+        sleepLevelTimeSeries_df = create_sleep_level_ts_df(sleepLevelTimeSeries)
+
+        # Plot the timeseries
+        plot_sleep_level_time_series(sleepLevelTimeSeries_df)
+
+
+def plot_sleep_level_time_series(sleepLevelTimeSeries_df):
+    global DATE_FORMAT
+
+    colors = {'Awake': 'red', 'REM': 'lightblue', 'Light': 'blue', 'Deep': 'darkblue'}
+    # Sleep date
+    date = sleepLevelTimeSeries_df['dateTime'].iloc[0].strftime("%d %B %Y")
+
+    # Create figure
+    fig = px.scatter(sleepLevelTimeSeries_df, x="dateTime", y="sleepStageNum",
+                     color="sleepStage", color_discrete_map=colors)
+
+    fig.update_layout(
+        title=f'Sleep Stages for {date}',
+        xaxis=dict(title='Time'),
+        yaxis=dict(title='Sleep Stage',
+                   tickmode='array',
+                   tickvals=[0, 1, 2, 3],
+                   ticktext=['Deep', 'Light', 'REM', 'Awake']),
+        plot_bgcolor='white',
+        height=500
+    )
+
+    # fig.show()
+    return fig
+
+# date = testDate
+# dates = [date]
+# sleepStartEnd_list = get_sleep_start_end(dates)
+# sleepStartEnd_list
+# fig = get_sleep_level_timeseries_data(sleepStartEnd_list)
+
+
+"""
+TO DO:
+MAKE SURE THE USER CAN SELECT THE DATE THEY WANT TO SEE THE DATA FOR preferably using a calendar widget if possible.
+
+
+1) Figure out what to do with the slider.
+2) Try to make side-by-side plots not overlapping.
+2) Create some more visualizations for activity and sleep (maybe that line plot from the app with smoothing options
+3) Try to create correlations
+4) ML if you have time.
+"""
+
+
+
+
+# COSTAS FROM HERE ON
 # ----------------------------------------------------------------------------------------------------------------------
 # Bar plot for the number of steps aggregated by day
 st.subheader(f'Average number of steps per day')
@@ -287,27 +728,27 @@ bubble_df['Sleep duration'] = bubble_df['Sleep duration'].astype(int)
 # 3d bubble graph for sleep levels and coloring based on the number of steps
 st.subheader(f'Relationship between the sleep levels duration and number of steps')
 dType = "sleepSummary-stages"
-level_summary_df = get_df(dType=dType)
+sleep_level_summary_df = get_df(dType=dType)
 
-level_summary_df = level_summary_df.drop("wake", axis=1)
+sleep_level_summary_df = sleep_level_summary_df.drop("wake", axis=1)
 rename_cols = {
     "deep": "Deep sleep minutes",
     "light": "Light sleep minutes",
     "rem": "REM minutes"
 }
-level_summary_df = level_summary_df.rename(columns=rename_cols)
+sleep_level_summary_df = sleep_level_summary_df.rename(columns=rename_cols)
 
 steps = bubble_df[['dateTime', 'Steps']]
-level_summary_df = level_summary_df.merge(steps, on='dateTime', how='left')
+sleep_level_summary_df = sleep_level_summary_df.merge(steps, on='dateTime', how='left')
 
-level_summary_df['Light sleep minutes'] = level_summary_df['Light sleep minutes'].astype(int)
-level_summary_df['Deep sleep minutes'] = level_summary_df['Deep sleep minutes'].astype(int)
-level_summary_df['REM minutes'] = level_summary_df['REM minutes'].astype(int)
-level_summary_df['Steps'] = level_summary_df['Steps'].astype(float)
+sleep_level_summary_df['Light sleep minutes'] = sleep_level_summary_df['Light sleep minutes'].astype(int)
+sleep_level_summary_df['Deep sleep minutes'] = sleep_level_summary_df['Deep sleep minutes'].astype(int)
+sleep_level_summary_df['REM minutes'] = sleep_level_summary_df['REM minutes'].astype(int)
+sleep_level_summary_df['Steps'] = sleep_level_summary_df['Steps'].astype(float)
 
-level_summary_df = level_summary_df.drop_duplicates()
+sleep_level_summary_df = sleep_level_summary_df.drop_duplicates()
 
-fig = px.scatter_3d(level_summary_df, x='Deep sleep minutes', y='Light sleep minutes', z='REM minutes',
+fig = px.scatter_3d(sleep_level_summary_df, x='Deep sleep minutes', y='Light sleep minutes', z='REM minutes',
                     color='Steps', color_continuous_scale='redor')
 
 st.plotly_chart(fig)
