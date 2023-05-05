@@ -577,7 +577,7 @@ def plot_sleep_level_time_series(sleepLevelTimeSeries_df):
                    tickvals=[0, 1, 2, 3],
                    ticktext=['Deep', 'Light', 'REM', 'Awake']),
         plot_bgcolor='white',
-        height=500
+        height=350
     )
 
     # fig.show()
@@ -669,7 +669,7 @@ def plot_activity_level_timeseries(activity_timeseries_df):
                    tickvals=[0, 1, 2, 3],
                    ticktext=['Sedentary', 'Lightly Active', 'Fairly Active', 'Very Active']),
         plot_bgcolor='white',
-        height=500
+        height=350
     )
 
     # fig.show()
