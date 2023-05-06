@@ -4,7 +4,12 @@ import pandas as pd
 import pymongo as mongo
 import plotly.express as px
 import plotly.graph_objs as go
+import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+from statsmodels.tsa.ar_model import AutoReg
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, LSTM
+from sklearn.metrics import mean_absolute_percentage_error
 
 USER_UUID = "3cc4e2ee-8c2f-4c25-955b-fe7f6ffcbe44"
 DB_NAME = "fitbit"
@@ -618,3 +623,120 @@ def heatmpaPlots():
     df_list = [sleepEfficiency_df, steps_df, sleepSummary_stages_df, activitySummary_stages_df]
 
     return merge_dataframes(df_list=df_list, common_col="dateTime", how="outer")
+
+
+def AutoReg_TS(df, target, lag, steps):
+    # Load your data
+    ts = df[['dateTime', target]].copy()
+    
+    # Convert dateTime column to datetime type
+    ts['dateTime'] = pd.to_datetime(ts['dateTime'])
+
+    # Sort the dataframe by dateTime column
+    ts = ts.sort_values(by='dateTime')
+
+    # Set the dateTime column as the index
+    ts = ts.set_index('dateTime')
+
+    # Fill missing values with the mean of the rolling window
+    window_size = 3
+    ts = ts.rolling(window=window_size, min_periods=1).mean().fillna(method='bfill')
+
+    # Split the data into train and test sets
+    train = ts.iloc[:]
+    # test = ts.iloc[-1:]
+    last_index = df.index[-1]
+
+    # Train an autoregression model with lag=1 (predicting tomorrow's steps)
+    model = AutoReg(train[target], lags=lag)
+    model_fit = model.fit()
+
+    # Make a forecast for tomorrow's steps
+    forecast = model_fit.forecast(steps=steps)
+
+    # assuming the variable is named 'forecast'
+    df_forecast = forecast.to_frame().reset_index()
+
+    # rename the columns
+    df_forecast.columns = ['dateTime', 'forecast']
+    df_forecast['dateTime'] = pd.to_datetime(df_forecast['dateTime'])
+    df_forecast = df_forecast.sort_values(by='dateTime')
+    df_forecast = df_forecast.set_index('dateTime')
+
+    ts = pd.concat([ts, df_forecast])
+
+    # Print the forecasted steps value
+    return ts, last_index
+
+
+
+# Calculate the mean absolute percentage error
+def mape(actuals, preds):
+    return np.mean(np.abs((actuals - preds) / actuals)) * 100
+
+def LSTM_model(df, lstm_nodes=50, epochs=200):
+    # select the relevant columns for the model
+    # ts = df.copy()
+    # ts['target'] = ts['sleepEfficiency']
+    # ts.drop(columns='sleepEfficiency', inplace=True)
+
+    ts = df[['Steps', 'minutesFairlyActive', 'minutesLightlyActive', 'minutesSedentary', 'minutesVeryActive', 'target']].values
+
+    # split the data into train and test sets
+    train_data = ts[:30, :]
+    test_data = ts[30:, :]
+
+    # create the input sequences and corresponding output values for the train set
+    X_train = train_data[:, :5]
+    y_train = train_data[:, 5:]
+    X_train, y_train = np.array(X_train), np.array(y_train)
+
+    # create the input sequences and corresponding output values for the test set
+    X_test = test_data[:, :5]
+    y_test = test_data[:, 5:]
+    X_test, y_test = np.array(X_test), np.array(y_test)
+
+    # reshape input to be 3D [samples, timesteps, features]
+    X_train = np.reshape(X_train, (X_train.shape[0], 1, X_train.shape[1]))
+    X_test = np.reshape(X_test, (X_test.shape[0], 1, X_test.shape[1]))
+
+    # define the LSTM model
+    model = Sequential()
+    model.add(LSTM(lstm_nodes, activation='relu', input_shape=(1, 5)))
+    model.add(Dense(25))
+    model.add(Dense(10))
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mse')
+
+    # fit the LSTM model
+    model.fit(X_train, y_train, epochs=epochs, batch_size=1, verbose=0)
+
+    # make predictions
+    y_pred = model.predict(X_test)
+
+    # print("Actuals: ", y_test)
+    # print("Predicted: ", y_pred)
+
+    # make predictions
+    y_pred = model.predict(X_test)
+
+    # calculate error for each prediction
+    errors = np.empty(len(y_pred))
+    for i in range(len(y_pred)):
+        error = mean_absolute_percentage_error(y_test[i], y_pred[i])
+        errors[i] = error
+        # print(f"Error for prediction {i+1}: {error}")
+
+    # Calculate the MAPE between the predictions and actuals
+    mape_val = mape(y_test, y_pred)
+
+    # print('MAPE:', mape_val)
+
+    result = df[['target']]
+    result['forecast'] = np.nan
+    result['error'] = np.nan
+    # new_values = y_pred.ravel()
+    result.iloc[-len(y_pred.ravel()):, result.columns.get_loc('forecast')] = y_pred.ravel()
+    result.iloc[-len(y_pred.ravel()):, result.columns.get_loc('error')] = errors
+
+    return result, mape_val

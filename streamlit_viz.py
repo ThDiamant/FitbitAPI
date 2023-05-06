@@ -457,4 +457,74 @@ fig.update_layout(barmode='stack', yaxis_title='Minutes')
 st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
+st.subheader(f'AutoRegression for Steps and Sleep Efficiency')
+col1, col2 = st.columns(2)
 
+with col1:
+   targetVars = ['sleepEfficiency', 'Steps']
+   target = st.selectbox('Select Target Variable', targetVars)
+
+with col2:
+   steps = number = st.number_input('Insert Steps', value = 1)
+
+result_ar, _ = fun.AutoReg_TS(correlation_df, target, 1, steps)
+
+fig_ar = go.Figure()
+for col in result_ar.columns:
+    fig_ar.add_trace(go.Scatter(x=result_ar.index, y=result_ar[col], mode='lines', name=col))
+
+# Set the chart title and axis labels
+fig_ar.update_layout(title='Line Chart Example', xaxis_title='Date', yaxis_title='Value')
+
+# Set the chart x-axis to date type and format
+fig_ar.update_xaxes(type='date', tickformat='%b %d')
+
+# Set the minimum and maximum y-axis range
+fig_ar.update_yaxes(range=[result_ar.values.min(), result_ar.values.max()])
+
+# Render the plotly figure in Streamlit
+st.plotly_chart(fig_ar, use_container_width=True)
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+st.subheader(f'LSTM on Sleep Efficiency')
+col1, col2 = st.columns(2)
+
+df_lstm = correlation_df.copy()
+df_lstm.dropna(inplace=True)
+
+df_lstm['dateTime'] = pd.to_datetime(df_lstm['dateTime'])
+
+# set dateTime column as index
+df_lstm.set_index('dateTime', inplace=True)
+
+df_lstm['target'] = df_lstm['sleepEfficiency']
+df_lstm.drop(columns='sleepEfficiency', inplace=True)
+
+with col1:
+   lstm_nodes = number = st.number_input('Insert LSTM Nodes', value = 25)
+
+with col2:
+   epochs = number = st.number_input('Insert Epochs', value = 100)
+
+result_lstm, mape_val = fun.LSTM_model(df_lstm, lstm_nodes=lstm_nodes, epochs=epochs)
+
+st.write(f'MAPE: {mape_val}')
+
+fig_lstm = go.Figure()
+for col in result_lstm.columns:
+    fig_lstm.add_trace(go.Scatter(x=result_lstm.index, y=result_lstm[col], mode='lines', name=col))
+
+# Set the chart title and axis labels
+fig_lstm.update_layout(title='Line Chart Example', xaxis_title='Date', yaxis_title='Value')
+fig_lstm.update_layout(hovermode="x unified")
+# Set the chart x-axis to date type and format
+fig_lstm.update_xaxes(type='date', tickformat='%b %d')
+
+# Set the minimum and maximum y-axis range
+fig_lstm.update_yaxes(range=[result_lstm.values.min(), result_lstm.values.max()])
+
+# Render the plotly figure in Streamlit
+st.plotly_chart(fig_lstm, use_container_width=True)
+
+# ----------------------------------------------------------------------------------------------------------------------
