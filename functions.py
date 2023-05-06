@@ -683,8 +683,8 @@ def LSTM_model(df, lstm_nodes=50, epochs=200):
     ts = df[['Steps', 'minutesFairlyActive', 'minutesLightlyActive', 'minutesSedentary', 'minutesVeryActive', 'target']].values
 
     # split the data into train and test sets
-    train_data = ts[:30, :]
-    test_data = ts[30:, :]
+    train_data = ts[:df.shape[0]-5, :]
+    test_data = ts[df.shape[0]-5:, :]
 
     # create the input sequences and corresponding output values for the train set
     X_train = train_data[:, :5]
