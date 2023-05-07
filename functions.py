@@ -278,6 +278,16 @@ def plot_bar_from_ser(ser, title, x_axis_title, y_axis_title):
 
     return fig
 
+def plot_pie_from_ser(ser, title):
+    # Create a bar chart using plotly.graph_objects
+    fig = go.Figure(data=go.Pie(labels=ser.index, values=ser.values))
+    fig.update_layout(
+        title=title,
+        font=dict(family='Arial', size=12)
+    )
+
+    return fig
+
 def get_activity_df():
     # Get data
     dType = 'minutesSedentary'
@@ -723,7 +733,7 @@ def LSTM_model(df, lstm_nodes=50, epochs=200):
     # calculate error for each prediction
     errors = np.empty(len(y_pred))
     for i in range(len(y_pred)):
-        error = mean_absolute_percentage_error(y_test[i], y_pred[i])
+        error = mean_absolute_percentage_error(y_test[i], y_pred[i]) * 100
         errors[i] = error
         # print(f"Error for prediction {i+1}: {error}")
 

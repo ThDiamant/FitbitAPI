@@ -54,19 +54,30 @@ period = st.sidebar.slider(label='Number of days',
                            value=NUM_DAYS,
                            step=1)
 
+date_range = st.sidebar.slider(
+    "When do you start?",
+    value=(dt.datetime.strptime(START_DATE, DATE_FORMAT), dt.datetime.strptime(END_DATE, DATE_FORMAT)),
+    format="DD/MM/YYYY")
+# st.write("Date range:", date_range)
+
+start_date = date_range[0]
+end_date = date_range[1]
+
 # ----- Avg sleep duration (total)
 def get_avg_sleep_duration(period):
     dType = 'sleep-duration'
     sleep_duration_df = fun.get_df(dType=dType)
     # Filter based on the selected period
-    sleep_duration_df = sleep_duration_df.iloc[-period:]
+    sleep_duration_df['dateTime'] = pd.to_datetime(sleep_duration_df['dateTime'])
+    sleep_duration_df = sleep_duration_df.set_index('dateTime')
+    sleep_duration_df = sleep_duration_df.loc[(sleep_duration_df.index >= period[0]) & (sleep_duration_df.index <= period[1])]
 
     # Convert sleep duration from ms to hours
     sleep_duration_df['value'] = sleep_duration_df['value'] / 3600000
     tot_avg_sleep_duration = round(sleep_duration_df['value'].mean(), 1)
     return tot_avg_sleep_duration
 
-tot_avg_sleep_duration = get_avg_sleep_duration(period)
+tot_avg_sleep_duration = get_avg_sleep_duration(date_range)
 print(tot_avg_sleep_duration)
 
 
@@ -101,14 +112,13 @@ with col4:
 avg_min_stage_df = fun.avg_num_min_each_stage_ser(period)
 
 
-
 # Plot
 title = 'Avg time spent in each Sleep Stage'
 x_axis_title = 'Minutes'
 y_axis_title = 'Sleep Stage'
-avg_min_stage_fig = fun.plot_bar_from_ser(avg_min_stage_df, title, x_axis_title, y_axis_title)
+avg_min_stage_fig = fun.plot_pie_from_ser(avg_min_stage_df, title)
 
-# st.plotly_chart(avg_min_stage_fig)
+st.plotly_chart(avg_min_stage_fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Bar chart - Avg minutes in different activity zones
@@ -118,16 +128,9 @@ avg_min_activity_ser = fun.get_avg_min_activity_ser(period)
 title = 'Avg time spent in each Activity Type'
 x_axis_title = 'Minutes'
 y_axis_title = 'Activity Type'
-avg_min_activity_fig = fun.plot_bar_from_ser(avg_min_activity_ser, title, x_axis_title, y_axis_title)
+avg_min_activity_fig = fun.plot_pie_from_ser(avg_min_activity_ser, title)
 
-# st.plotly_chart(avg_min_activity_fig)
-
-# Show the metrics side by side
-col1, col2 = st.columns(2)
-with col1:
-    st.plotly_chart(avg_min_stage_fig)
-with col2:
-    st.plotly_chart(avg_min_activity_fig)
+st.plotly_chart(avg_min_activity_fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Plot time series for sleep and activity level data
@@ -167,37 +170,25 @@ else:
     fig = fun.plot_activity_level_timeseries(activity_timeseries_df)
     st.plotly_chart(fig.to_dict())
 
-"""
-TO DO:
-MAKE SURE THE USER CAN SELECT THE DATE THEY WANT TO SEE THE DATA FOR preferably using a calendar widget if possible.
 
-
-1) Figure out what to do with the slider.
-2) Try to make side-by-side plots not overlapping.
-2) Create some more visualizations for activity and sleep (maybe that line plot from the app with smoothing options
-3) Try to create correlations
-4) ML if you have time.
-"""
-
-
-# COSTAS FROM HERE ON
 # ----------------------------------------------------------------------------------------------------------------------
 # Bar plot for the number of steps aggregated by day
-st.subheader(f'Average number of steps per day')
+st.subheader(f'Average number of steps per day of week')
 # Get data
 dType = 'steps'
 steps_per_day_df = fun.get_df(dType=dType, addDateTimeCols=True)
-
-steps_per_day_df = steps_per_day_df.groupby('day').agg({'value': 'mean'}).reset_index(drop=False)
+# steps_per_day_df['day'] = steps_per_day_df['dateTime'].dt.day_name()
+# st.write(steps_per_day_df)
+steps_per_day_df = steps_per_day_df.groupby('day_name').agg({'value': 'mean'}).reset_index(drop=False)
 steps_per_day_df['value'] = steps_per_day_df['value'].astype(int).round()
-steps_per_day_df = steps_per_day_df.rename(columns={'value': 'Steps', 'day': 'Day'})
-steps_per_day_df = steps_per_day_df.sort_values(by='Day')
+steps_per_day_df = steps_per_day_df.rename(columns={'value': 'Steps', 'day_name': 'Day'})
+# steps_per_day_df = steps_per_day_df.sort_values(by='Day')
 fig = px.bar(steps_per_day_df, x='Day', y='Steps')
 st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Stacked bar chart for the sleep levels duration
-st.subheader(f'Average duration of sleep levels per day')
+st.subheader(f'Average duration of sleep levels per day of week')
 # Get data
 dType = 'sleepLevelsData-data'
 sleep_levels_data = fun.get_df(dType=dType)
@@ -205,16 +196,18 @@ sleep_levels_data = fun.get_df(dType=dType)
 sleep_levels_data['dateTime'] = sleep_levels_data['dateTime'].dt.date
 sleep_data_grouped = sleep_levels_data.groupby(['dateTime', 'level'])['value'].sum()
 sleep_data_pivot = sleep_data_grouped.unstack()
-sleep_data_pivot = sleep_data_pivot[['deep', 'light', 'rem']]
+sleep_data_pivot = sleep_data_pivot[['deep', 'light', 'rem', 'wake']]
 sleep_data_pivot = sleep_data_pivot.dropna()
 
 sleep_data_pivot['deep'] = sleep_data_pivot['deep'].astype(float)
 sleep_data_pivot['rem'] = sleep_data_pivot['rem'].astype(float)
 sleep_data_pivot['light'] = sleep_data_pivot['light'].astype(float)
+sleep_data_pivot['wake'] = sleep_data_pivot['wake'].astype(float)
 
 sleep_data_pivot['deep'] = sleep_data_pivot['deep'] / 60
 sleep_data_pivot['light'] = sleep_data_pivot['light'] / 60
 sleep_data_pivot['rem'] = sleep_data_pivot['rem'] / 60
+sleep_data_pivot['wake'] = sleep_data_pivot['wake'] / 60
 
 sleep_data_pivot = sleep_data_pivot.reset_index()
 sleep_data_pivot['dateTime'] = pd.to_datetime(sleep_data_pivot['dateTime'])
@@ -224,7 +217,7 @@ sleep_data_pivot = sleep_data_pivot.drop(columns=['dateTime'])
 cat_dtype = pd.CategoricalDtype(
     categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], ordered=True)
 sleep_data_pivot['day'] = sleep_data_pivot['day'].astype(cat_dtype)
-sleep_data_pivot = sleep_data_pivot.groupby('day').agg({'deep': 'mean', 'rem': 'mean', 'light': 'mean'}).reset_index(
+sleep_data_pivot = sleep_data_pivot.groupby('day').agg({'deep': 'mean', 'rem': 'mean', 'light': 'mean', 'wake': 'mean'}).reset_index(
     drop=False)
 sleep_data_pivot = sleep_data_pivot.reset_index(drop=True)
 sleep_data_pivot.set_index('day', inplace=True)
@@ -233,7 +226,8 @@ sleep_data_pivot = sleep_data_pivot.loc[cat_dtype.categories]
 fig = go.Figure(data=[
     go.Bar(name='Deep', x=sleep_data_pivot.index, y=sleep_data_pivot['deep']),
     go.Bar(name='REM', x=sleep_data_pivot.index, y=sleep_data_pivot['rem']),
-    go.Bar(name='Light', x=sleep_data_pivot.index, y=sleep_data_pivot['light'])
+    go.Bar(name='Light', x=sleep_data_pivot.index, y=sleep_data_pivot['light']),
+    go.Bar(name='Wake', x=sleep_data_pivot.index, y=sleep_data_pivot['wake'])
 ])
 
 fig.update_layout(barmode='stack', yaxis_title='Minutes')
@@ -270,44 +264,6 @@ activity_df.index.name = None
 # Plot result
 st.area_chart(data=activity_df)
 
-# ----------------------------------------------------------------------------------------------------------------------
-# Timeseries comparison between the activity and sleep duration
-# st.subheader(f'Timeseries comparison between the activity and sleep duration')
-
-# dType = 'sleep-duration'
-# totalMinutesAsleep_df = get_df(dType=dType)
-
-# sleep_time_activity_corr_df = minutesVeryActive_df.merge(totalMinutesAsleep_df, on='dateTime', how='left')
-# sleep_time_activity_corr_df = sleep_time_activity_corr_df.merge(minutesFairlyActive_df, on='dateTime', how='left')
-# sleep_time_activity_corr_df = sleep_time_activity_corr_df.merge(minutesLightlyActive_df, on='dateTime', how='left')
-# sleep_time_activity_corr_df = sleep_time_activity_corr_df.rename(columns={'value': 'sleep duration'})
-# sleep_time_activity_corr_df = sleep_time_activity_corr_df.dropna()
-
-# sleep_time_activity_corr_df['fairly active'] = sleep_time_activity_corr_df['fairly active'].astype(int)
-# sleep_time_activity_corr_df['lightly active'] = sleep_time_activity_corr_df['lightly active'].astype(int)
-# sleep_time_activity_corr_df['very active'] = sleep_time_activity_corr_df['very active'].astype(int)
-# sleep_time_activity_corr_df['sleep duration'] = sleep_time_activity_corr_df['sleep duration'].astype(float)
-# sleep_time_activity_corr_df['sleep duration'] = sleep_time_activity_corr_df['sleep duration'] / 60000
-# sleep_time_activity_corr_df['activity'] = sleep_time_activity_corr_df['very active'] + sleep_time_activity_corr_df[
-#     'lightly active'] + sleep_time_activity_corr_df['fairly active']
-
-# smoothed_ts = sleep_time_activity_corr_df[['dateTime', 'activity', 'sleep duration']]
-# smoothed_ts.set_index('dateTime', inplace=True)
-# smoothed_ts.index.name = None
-
-# resample_values = ['No resample/smooth', '2d', '3d', '4d']
-# container = st.container()
-# row = container.columns([2, 8])
-# with row[0]:
-#     resample = st.selectbox('Resample/Smooth', resample_values)
-
-# if resample == 'No resample/smooth':
-#     smoothed_ts_resampled = smoothed_ts[["activity", "sleep duration"]]
-# else:
-#     smoothed_ts_resampled = smoothed_ts[["activity", "sleep duration"]].resample(resample).median()
-
-# with row[1]:
-#     st.line_chart(smoothed_ts_resampled)
 
 # 3d bubble graph for Steps|Very Active|Sleep duration
 # Currently not in use
@@ -352,7 +308,7 @@ sleep_level_summary_df['Deep sleep minutes'] = sleep_level_summary_df['Deep slee
 sleep_level_summary_df['REM minutes'] = sleep_level_summary_df['REM minutes'].astype(int)
 sleep_level_summary_df['Steps'] = sleep_level_summary_df['Steps'].astype(float)
 
-sleep_level_summary_df = sleep_level_summary_df.drop_duplicates()
+sleep_level_summary_df = sleep_level_summary_df.drop_duplicates().dropna()
 
 fig = px.scatter_3d(sleep_level_summary_df, x='Deep sleep minutes', y='Light sleep minutes', z='REM minutes',
                     color='Steps', color_continuous_scale='redor')
@@ -360,7 +316,7 @@ fig = px.scatter_3d(sleep_level_summary_df, x='Deep sleep minutes', y='Light sle
 st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
-st.subheader(f'Correlation Plots')
+st.subheader(f'Correlation Matrix')
 correlation_df = fun.heatmpaPlots()
 corr_matrix = correlation_df.corr()
 
@@ -372,8 +328,10 @@ fig = px.imshow(corr_matrix,
 
 st.plotly_chart(fig)
 
+# ----------------------------------------------------------------------------------------------------------------------
+st.subheader(f'TimeSeries Comparison')
 options = st.multiselect(
-    'Features to Plot',
+    'Select Variables',
     ['sleepEfficiency', 'Steps', 'deep', 'light', 'rem', 'wake', 'minutesFairlyActive', 'minutesLightlyActive', 'minutesSedentary', 'minutesVeryActive'],
     ['deep', 'light', 'rem', 'wake'])
 
@@ -405,7 +363,7 @@ with row[1]:
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Stacked bar chart for the activity stages duration
-st.subheader(f'Average duration of activity stages per day')
+st.subheader(f'Average duration of activity stages per day of week')
 # Get data
 minutesFairlyActive_df = fun.get_df(dType="minutesFairlyActive").rename(columns={'value': 'Fairly Active'})
 minutesFairlyActive_df['Fairly Active'] = minutesFairlyActive_df['Fairly Active'].astype(int)
@@ -465,7 +423,7 @@ with col1:
    target = st.selectbox('Select Target Variable', targetVars)
 
 with col2:
-   steps = number = st.number_input('Insert Steps', value = 1)
+   steps = number = st.number_input('Select Forecast Horizon', value = 2)
 
 result_ar, _ = fun.AutoReg_TS(correlation_df, target, 1, steps)
 
@@ -509,7 +467,7 @@ with col2:
 
 result_lstm, mape_val = fun.LSTM_model(df_lstm, lstm_nodes=lstm_nodes, epochs=epochs)
 
-st.write(f'MAPE: {mape_val}')
+st.write(f'MAPE: {mape_val:.3f}%')
 
 fig_lstm = go.Figure()
 for col in result_lstm.columns:
