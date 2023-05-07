@@ -48,20 +48,10 @@ st.title('Fitbit Sleep-Activity Insights')
 # Sleep - Numeric indicators
 
 # Define the slider widget for the numeric indicators
-period = st.sidebar.slider(label='Number of days',
-                           min_value=1,
-                           max_value=NUM_DAYS,
-                           value=NUM_DAYS,
-                           step=1)
-
 date_range = st.sidebar.slider(
     "When do you start?",
     value=(dt.datetime.strptime(START_DATE, DATE_FORMAT), dt.datetime.strptime(END_DATE, DATE_FORMAT)),
     format="DD/MM/YYYY")
-# st.write("Date range:", date_range)
-
-start_date = date_range[0]
-end_date = date_range[1]
 
 # ----- Avg sleep duration (total)
 def get_avg_sleep_duration(period):
@@ -82,14 +72,14 @@ print(tot_avg_sleep_duration)
 
 
 # ----- Sleep start time (most common one)
-most_common_hour, nNights = fun.get_most_common_sleep_start_time(period)
-print(most_common_hour, nNights, period)
+most_common_hour, nNights = fun.get_most_common_sleep_start_time(date_range)
+print(most_common_hour, nNights, date_range)
 
 # ----- Avg sleep efficiency
-avg_sleep_efficiency = fun.get_avg_sleep_eff(period)
+avg_sleep_efficiency = fun.get_avg_sleep_eff(date_range)
 
 # ----- Avg number of steps
-avg_steps = fun.get_avg_steps(period)
+avg_steps = fun.get_avg_steps(date_range)
 
 
 # Show the metrics side by side
@@ -109,8 +99,7 @@ with col4:
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Bar chart - Avg number of minutes in each stage (total)
-avg_min_stage_df = fun.avg_num_min_each_stage_ser(period)
-
+avg_min_stage_df = fun.avg_num_min_each_stage_ser(date_range)
 
 # Plot
 title = 'Avg time spent in each Sleep Stage'
@@ -122,7 +111,7 @@ st.plotly_chart(avg_min_stage_fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Bar chart - Avg minutes in different activity zones
-avg_min_activity_ser = fun.get_avg_min_activity_ser(period)
+avg_min_activity_ser = fun.get_avg_min_activity_ser(date_range)
 
 # Plot
 title = 'Avg time spent in each Activity Type'
@@ -228,6 +217,59 @@ fig = go.Figure(data=[
     go.Bar(name='REM', x=sleep_data_pivot.index, y=sleep_data_pivot['rem']),
     go.Bar(name='Light', x=sleep_data_pivot.index, y=sleep_data_pivot['light']),
     go.Bar(name='Wake', x=sleep_data_pivot.index, y=sleep_data_pivot['wake'])
+])
+
+fig.update_layout(barmode='stack', yaxis_title='Minutes')
+st.plotly_chart(fig)
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Stacked bar chart for the activity stages duration
+st.subheader(f'Average duration of activity stages per day of week')
+# Get data
+minutesFairlyActive_df = fun.get_df(dType="minutesFairlyActive").rename(columns={'value': 'Fairly Active'})
+minutesFairlyActive_df['Fairly Active'] = minutesFairlyActive_df['Fairly Active'].astype(int)
+minutesLightlyActive_df = fun.get_df(dType="minutesLightlyActive").rename(columns={'value': 'Lightly Active'})
+minutesLightlyActive_df['Lightly Active'] = minutesLightlyActive_df['Lightly Active'].astype(int)
+minutesSedentary_df = fun.get_df(dType="minutesSedentary").rename(columns={'value': 'Sedentary'})
+minutesSedentary_df['Sedentary'] = minutesSedentary_df['Sedentary'].astype(int)
+minutesVeryActive_df = fun.get_df(dType="minutesVeryActive").rename(columns={'value': 'Very Active'})
+minutesVeryActive_df['Very Active'] = minutesVeryActive_df['Very Active'].astype(int)
+df_list = [minutesFairlyActive_df, minutesLightlyActive_df, minutesSedentary_df, minutesVeryActive_df]
+activitySummary_stages_df = fun.merge_dataframes(df_list=df_list, common_col="dateTime", how="outer")
+
+activitySummary_stages_df['dateTime'] = activitySummary_stages_df['dateTime'].dt.date
+activity_data_pivot = activitySummary_stages_df.dropna()
+
+activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'].astype(float)
+activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'].astype(float)
+activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'].astype(float)
+activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'].astype(float)
+
+activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'] / 60
+activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'] / 60
+activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'] / 60
+activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'] / 60
+
+
+activity_data_pivot = activity_data_pivot.reset_index()
+activity_data_pivot['dateTime'] = pd.to_datetime(activity_data_pivot['dateTime'])
+activity_data_pivot['day'] = activity_data_pivot['dateTime'].dt.day_name()
+
+activity_data_pivot = activity_data_pivot.drop(columns=['dateTime'])
+cat_dtype = pd.CategoricalDtype(
+    categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], ordered=True)
+activity_data_pivot['day'] = activity_data_pivot['day'].astype(cat_dtype)
+activity_data_pivot = activity_data_pivot.groupby('day').agg({'Fairly Active': 'mean', 'Lightly Active': 'mean', 'Sedentary': 'mean', 'Very Active': 'mean' }).reset_index(
+    drop=False)
+activity_data_pivot = activity_data_pivot.reset_index(drop=True)
+activity_data_pivot.set_index('day', inplace=True)
+activity_data_pivot = activity_data_pivot.loc[cat_dtype.categories]
+
+fig = go.Figure(data=[
+    go.Bar(name='Fairly Active', x=activity_data_pivot.index, y=activity_data_pivot['Fairly Active']),
+    go.Bar(name='Lightly Active', x=activity_data_pivot.index, y=activity_data_pivot['Lightly Active']),
+    go.Bar(name='Sedentary', x=activity_data_pivot.index, y=activity_data_pivot['Sedentary']),
+    go.Bar(name='Very Active', x=activity_data_pivot.index, y=activity_data_pivot['Very Active'])
 ])
 
 fig.update_layout(barmode='stack', yaxis_title='Minutes')
@@ -360,59 +402,6 @@ else:
 with row[1]:
     #st.line_chart(smoothed_ts_resampled)
     st.line_chart(smoothed_ts_resampled)
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Stacked bar chart for the activity stages duration
-st.subheader(f'Average duration of activity stages per day of week')
-# Get data
-minutesFairlyActive_df = fun.get_df(dType="minutesFairlyActive").rename(columns={'value': 'Fairly Active'})
-minutesFairlyActive_df['Fairly Active'] = minutesFairlyActive_df['Fairly Active'].astype(int)
-minutesLightlyActive_df = fun.get_df(dType="minutesLightlyActive").rename(columns={'value': 'Lightly Active'})
-minutesLightlyActive_df['Lightly Active'] = minutesLightlyActive_df['Lightly Active'].astype(int)
-minutesSedentary_df = fun.get_df(dType="minutesSedentary").rename(columns={'value': 'Sedentary'})
-minutesSedentary_df['Sedentary'] = minutesSedentary_df['Sedentary'].astype(int)
-minutesVeryActive_df = fun.get_df(dType="minutesVeryActive").rename(columns={'value': 'Very Active'})
-minutesVeryActive_df['Very Active'] = minutesVeryActive_df['Very Active'].astype(int)
-df_list = [minutesFairlyActive_df, minutesLightlyActive_df, minutesSedentary_df, minutesVeryActive_df]
-activitySummary_stages_df = fun.merge_dataframes(df_list=df_list, common_col="dateTime", how="outer")
-
-activitySummary_stages_df['dateTime'] = activitySummary_stages_df['dateTime'].dt.date
-activity_data_pivot = activitySummary_stages_df.dropna()
-
-activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'].astype(float)
-activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'].astype(float)
-activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'].astype(float)
-activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'].astype(float)
-
-activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'] / 60
-activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'] / 60
-activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'] / 60
-activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'] / 60
-
-
-activity_data_pivot = activity_data_pivot.reset_index()
-activity_data_pivot['dateTime'] = pd.to_datetime(activity_data_pivot['dateTime'])
-activity_data_pivot['day'] = activity_data_pivot['dateTime'].dt.day_name()
-
-activity_data_pivot = activity_data_pivot.drop(columns=['dateTime'])
-cat_dtype = pd.CategoricalDtype(
-    categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], ordered=True)
-activity_data_pivot['day'] = activity_data_pivot['day'].astype(cat_dtype)
-activity_data_pivot = activity_data_pivot.groupby('day').agg({'Fairly Active': 'mean', 'Lightly Active': 'mean', 'Sedentary': 'mean', 'Very Active': 'mean' }).reset_index(
-    drop=False)
-activity_data_pivot = activity_data_pivot.reset_index(drop=True)
-activity_data_pivot.set_index('day', inplace=True)
-activity_data_pivot = activity_data_pivot.loc[cat_dtype.categories]
-
-fig = go.Figure(data=[
-    go.Bar(name='Fairly Active', x=activity_data_pivot.index, y=activity_data_pivot['Fairly Active']),
-    go.Bar(name='Lightly Active', x=activity_data_pivot.index, y=activity_data_pivot['Lightly Active']),
-    go.Bar(name='Sedentary', x=activity_data_pivot.index, y=activity_data_pivot['Sedentary']),
-    go.Bar(name='Very Active', x=activity_data_pivot.index, y=activity_data_pivot['Very Active'])
-])
-
-fig.update_layout(barmode='stack', yaxis_title='Minutes')
-st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 st.subheader(f'AutoRegression for Steps and Sleep Efficiency')

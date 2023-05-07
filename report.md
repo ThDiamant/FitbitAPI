@@ -232,28 +232,27 @@ Lets start with a summarization of our data. The widget below takes under accoun
 
 ```python
 # Define the slider widget for the numeric indicators
-period = st.sidebar.slider(label='Number of days',
-                           min_value=1,
-                           max_value=NUM_DAYS,
-                           value=NUM_DAYS,
-                           step=1)
+date_range = st.sidebar.slider(
+    "When do you start?",
+    value=(dt.datetime.strptime(START_DATE, DATE_FORMAT), dt.datetime.strptime(END_DATE, DATE_FORMAT)),
+    format="DD/MM/YYYY")
 ```
 
 For those data we calculate the average sleep duration, average sleep time, average sleep efficiency and average steps per day. To display them we use the following code:
 
 ``` python
-tot_avg_sleep_duration = get_avg_sleep_duration(period)
+tot_avg_sleep_duration = get_avg_sleep_duration(date_range)
 print(tot_avg_sleep_duration)
 
 # ----- Sleep start time (most common one)
-most_common_hour, nNights = fun.get_most_common_sleep_start_time(period)
-print(most_common_hour, nNights, period)
+most_common_hour, nNights = fun.get_most_common_sleep_start_time(date_range)
+print(most_common_hour, nNights, date_range)
 
 # ----- Avg sleep efficiency
-avg_sleep_efficiency = fun.get_avg_sleep_eff(period)
+avg_sleep_efficiency = fun.get_avg_sleep_eff(date_range)
 
 # ----- Avg number of steps
-avg_steps = fun.get_avg_steps(period)
+avg_steps = fun.get_avg_steps(date_range)
 
 # Show the metrics side by side
 col1, col2, col3, col4 = st.columns(4)
@@ -309,10 +308,32 @@ Then we will fetch the data of this date in order to create the mentioned widget
 
 ![Activity Over Time](./images/activityOverTime.PNG)
 
+More interesting may come up by extracting the average steps, average duration of each sleep stage and average duration of each activity stage per day of week. By Doing that, we can spot patterns which have to do with the daily habit. So, based on our data the following charts are created:
 
+![Steps Per Dat](./images/averageStepsPerDay.PNG)
+![Sleep Stages Per Day](./images/averageStageDurationPerDay.PNG)
+![Activity Stages Per Day](./images/averageDurationActivityStagesPerDay.PNG)
 
+Also, we can check the activity on the full scale to understand larger patters:
 
+![Activity Status Over Time](./images/activityStatusOverTime.PNG)
 
+Now that we have examine the behavior of each variable lets start the investigation of the relationships between them. First, lets check is the duration of each sleep level is related with the number of steps. The following chart comes up:
+
+![Relationship](./images/relationshipSleepDurationSteps.PNG)
+
+Next, lets check how it's variable is related with the others. For this purpose we will use a correlation matrix:
+
+![Correlation Matrix](./images/correlationMatrix.PNG)
+
+As a final step, we can create a chart in order to display two or more timeseries. Also, we can apply techniques for smothing their results. By doing that, we can easily check if they are related at all:
+
+![TimeSeries Comparison](./images/timeSeriesComparison.PNG)
+
+The final step of the article has to do with the usage of ML techique to the data. With them the following charts are created:
+
+![AutoRegression](./images/autoRegression.PNG)
+![LSTM](./images/lstm.PNG)
 
 
 

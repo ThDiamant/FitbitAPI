@@ -217,8 +217,13 @@ def get_df(dType=None, date=None, addDateTimeCols=False):
 def get_most_common_sleep_start_time(period):
     dType = 'sleep-startTime'
     sleep_stime_df = get_df(dType=dType)
+
     # Filter based on the selected period
-    sleep_stime_df = sleep_stime_df.iloc[-period:]
+    sleep_stime_df['dateTime'] = pd.to_datetime(sleep_stime_df['dateTime'])
+    sleep_stime_df = sleep_stime_df.set_index('dateTime')
+    # Filter based on the selected period
+    sleep_stime_df = sleep_stime_df.loc[(sleep_stime_df.index >= period[0]) & (sleep_stime_df.index <= period[1])]
+
     # Create column containing the hour
     sleep_stime_df['hour'] = sleep_stime_df['value'].dt.hour
     # Get the count of each hour
@@ -234,8 +239,12 @@ def get_most_common_sleep_start_time(period):
 def get_avg_sleep_eff(period):
     dType = 'sleep-efficiency'
     sleep_efficiency_df = get_df(dType=dType)
+
+    sleep_efficiency_df['dateTime'] = pd.to_datetime(sleep_efficiency_df['dateTime'])
+    sleep_efficiency_df = sleep_efficiency_df.set_index('dateTime')
     # Filter based on the selected period
-    sleep_efficiency_df = sleep_efficiency_df.iloc[-period:]
+    sleep_efficiency_df = sleep_efficiency_df.loc[(sleep_efficiency_df.index >= period[0]) & (sleep_efficiency_df.index <= period[1])]
+
     avg_sleep_efficiency = round(sleep_efficiency_df['value'].mean(), 1)
 
     return avg_sleep_efficiency
@@ -243,8 +252,12 @@ def get_avg_sleep_eff(period):
 def get_avg_steps(period):
     dType = 'steps'
     steps_df = get_df(dType=dType)
+
+    steps_df['dateTime'] = pd.to_datetime(steps_df['dateTime'])
+    steps_df = steps_df.set_index('dateTime')
     # Filter based on the selected period
-    steps_df = steps_df.iloc[-period:]
+    steps_df = steps_df.loc[(steps_df.index >= period[0]) & (steps_df.index <= period[1])]
+
     avg_steps = int(round(steps_df['value'].mean(), 0))
 
     return avg_steps
@@ -252,11 +265,14 @@ def get_avg_steps(period):
 def avg_num_min_each_stage_ser(period):
     dType = "sleepSummary-stages"
     sleep_level_summary_df = get_df(dType=dType)
+
+    sleep_level_summary_df['dateTime'] = pd.to_datetime(sleep_level_summary_df['dateTime'])
+    sleep_level_summary_df = sleep_level_summary_df.set_index('dateTime')
     # Filter based on the selected period
-    sleep_level_summary_df = sleep_level_summary_df.iloc[-period:]
+    sleep_level_summary_df = sleep_level_summary_df.loc[(sleep_level_summary_df.index >= period[0]) & (sleep_level_summary_df.index <= period[1])]
+
     # Get series with total avg time (min) spent in each sleep stage
     avg_min_stage_ser = (sleep_level_summary_df
-                        .drop('dateTime', axis=1)
                         .mean()
                         .round(0)
                         .astype(int))
@@ -321,10 +337,13 @@ def get_activity_df():
 def get_avg_min_activity_ser(period):
     activity_df = get_activity_df()
 
+    activity_df['dateTime'] = pd.to_datetime(activity_df['dateTime'])
+    activity_df = activity_df.set_index('dateTime')
     # Filter based on the selected period
-    activity_df = activity_df.iloc[-period:]
+    activity_df = activity_df.loc[(activity_df.index >= period[0]) & (activity_df.index <= period[1])]
+
+
     avg_min_activity_ser = (activity_df
-                            .drop('dateTime', axis=1)
                             .mean().round(0)
                             .astype(int))
 
@@ -658,7 +677,7 @@ def AutoReg_TS(df, target, lag, steps):
     last_index = df.index[-1]
 
     # Train an autoregression model with lag=1 (predicting tomorrow's steps)
-    model = AutoReg(train[target], lags=lag)
+    model = AutoReg(train[target], lags=steps)
     model_fit = model.fit()
 
     # Make a forecast for tomorrow's steps
