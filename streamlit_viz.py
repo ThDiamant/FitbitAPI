@@ -1,86 +1,60 @@
 import datetime as dt
 import streamlit as st
 import pandas as pd
-import pymongo as mongo
 import plotly.express as px
 import plotly.graph_objs as go
 from sklearn.preprocessing import MinMaxScaler
-
 import functions as fun
 
-# Options to be able to see all columns when printing
+# Options to be able to see all columns when printing dfs
 pd.options.display.width= None
 pd.options.display.max_columns= None
 pd.set_option('display.max_rows', 3000)
 pd.set_option('display.max_columns', 3000)
 
-# Set streamlit page width
-st.markdown(
-    """
-    <style>
-    .main {
-        max-width: 1600;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-USER_UUID = "3cc4e2ee-8c2f-4c25-955b-fe7f6ffcbe44"
-DB_NAME = "fitbit"
-DATA_COLLECTION_NAME = "fitbitCollection"
-DATE_FORMAT = "%d %B %Y"
-
-# # Connect to MongoDB collection where the data are stored
-# fitbitCollection = fun.connect_to_db()
-# distinctTypes = fitbitCollection.distinct("type")
-
+# Globals
+from functions import DATE_FORMAT, SLEEP_LEVEL_COLORS, ACTIVITY_LEVEL_COLORS, STEPS_COLOR
 START_DATE, END_DATE = fun.get_min_max_dates()
 # Number of days considered
 NUM_DAYS = (dt.datetime.strptime(END_DATE, DATE_FORMAT) - dt.datetime.strptime(START_DATE, DATE_FORMAT)).days
-# print(START_DATE, END_DATE, NUM_DAYS)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Streamlit Dashboard title
 st.title('Fitbit Sleep-Activity Insights')
 
+st.write("Welcome to our Streamlit dashboard on Sleep vs Activity!")
+
 # ----------------------------------------------------------------------------------------------------------------------
-# Sleep - Numeric indicators
+# Sleep & Activity - Numeric indicators
+st.subheader("General Information about sleep and activity")
 
 # Define the slider widget for the numeric indicators
-date_range = st.sidebar.slider(
-    "When do you start?",
-    value=(dt.datetime.strptime(START_DATE, DATE_FORMAT), dt.datetime.strptime(END_DATE, DATE_FORMAT)),
-    format="DD/MM/YYYY")
+start_date = dt.datetime.strptime(START_DATE, DATE_FORMAT)
+end_date = dt.datetime.strptime(END_DATE, DATE_FORMAT)
+date_range = st.slider(
+    ":calendar: Please select the date period you want to consider:",
+    min_value=start_date,
+    max_value=end_date,
+    value=(start_date, end_date),
+    format="DD MMM YYYY")
+
+# Print the number of selected days
+nDaysSelected = (date_range[1] - date_range[0]).days
+st.markdown(f"<h1 style='text-align: center; color: black; font-size: 20px; "
+            f"font-weight: bold;'>{nDaysSelected}/{NUM_DAYS} days selected</h1>",
+            unsafe_allow_html=True)
 
 # ----- Avg sleep duration (total)
-def get_avg_sleep_duration(period):
-    dType = 'sleep-duration'
-    sleep_duration_df = fun.get_df(dType=dType)
-    # Filter based on the selected period
-    sleep_duration_df['dateTime'] = pd.to_datetime(sleep_duration_df['dateTime'])
-    sleep_duration_df = sleep_duration_df.set_index('dateTime')
-    sleep_duration_df = sleep_duration_df.loc[(sleep_duration_df.index >= period[0]) & (sleep_duration_df.index <= period[1])]
-
-    # Convert sleep duration from ms to hours
-    sleep_duration_df['value'] = sleep_duration_df['value'] / 3600000
-    tot_avg_sleep_duration = round(sleep_duration_df['value'].mean(), 1)
-    return tot_avg_sleep_duration
-
-tot_avg_sleep_duration = get_avg_sleep_duration(date_range)
-print(tot_avg_sleep_duration)
-
+tot_avg_sleep_duration = fun.get_avg_sleep_duration(date_range)
 
 # ----- Sleep start time (most common one)
 most_common_hour, nNights = fun.get_most_common_sleep_start_time(date_range)
-print(most_common_hour, nNights, date_range)
 
 # ----- Avg sleep efficiency
 avg_sleep_efficiency = fun.get_avg_sleep_eff(date_range)
 
 # ----- Avg number of steps
 avg_steps = fun.get_avg_steps(date_range)
-
 
 # Show the metrics side by side
 col1, col2, col3, col4 = st.columns(4)
@@ -98,36 +72,33 @@ with col4:
               value=f'{avg_steps}')
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Bar chart - Avg number of minutes in each stage (total)
-avg_min_stage_df = fun.avg_num_min_each_stage_ser(date_range)
-
-# Plot
+# ----- Pie chart - Avg number of minutes in each stage (total)
+avg_min_stage_ser = fun.avg_num_min_each_stage_ser(date_range)
+# Define plot
 title = 'Avg time spent in each Sleep Stage'
-x_axis_title = 'Minutes'
-y_axis_title = 'Sleep Stage'
-avg_min_stage_fig = fun.plot_pie_from_ser(avg_min_stage_df, title)
+avg_min_stage_fig = fun.plot_pie_from_ser(avg_min_stage_ser, title, colors=SLEEP_LEVEL_COLORS)
 
-st.plotly_chart(avg_min_stage_fig)
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Bar chart - Avg minutes in different activity zones
+# ----- Pie chart - Avg minutes in different activity zones
 avg_min_activity_ser = fun.get_avg_min_activity_ser(date_range)
+# Define plot
+title = 'Avg time spent in each Activity Level'
+avg_min_activity_fig = fun.plot_pie_from_ser(avg_min_activity_ser, title, colors=ACTIVITY_LEVEL_COLORS)
 
-# Plot
-title = 'Avg time spent in each Activity Type'
-x_axis_title = 'Minutes'
-y_axis_title = 'Activity Type'
-avg_min_activity_fig = fun.plot_pie_from_ser(avg_min_activity_ser, title)
+# Plot the two pie charts side by side
+col1, col2 = st.columns(2)
+with col1:
+    st.plotly_chart(avg_min_stage_fig, use_container_width=True) # user_container_width helps in plots not overlapping
+with col2:
+    st.plotly_chart(avg_min_activity_fig, use_container_width=True)
 
-st.plotly_chart(avg_min_activity_fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Plot time series for sleep and activity level data
-
-start_date = fun.to_date(START_DATE)
-end_date = fun.to_date(END_DATE)
+# Plot daily time series for sleep and activity level data
+st.subheader("Sleep and Activity level time series per date")
 
 # Define date widget
+start_date = fun.to_date(START_DATE)
+end_date = fun.to_date(END_DATE)
 date = st.date_input(
     label=":calendar: Date selection",
     value=start_date)
@@ -140,7 +111,7 @@ elif date > end_date:
     st.write(f":exclamation: Selected date cannot be after {end_date.strftime(DATE_FORMAT)}. "
              f"Please select another date.:exclamation:")
 else:
-    # Plot sleep levels time series ------------------------------------------------------------------------------
+    # ----- Sleep levels time series
     # Here the functions are kind of used not as they are suppossed to
     # The functions where developed to create a list of dataframes with all the data, so here we only use them for
     # one date.
@@ -149,209 +120,87 @@ else:
     sleepStartEnd = sleepStartEnd_list[0]
     sleepLevelTimeSeries_df = fun.get_sleep_level_timeseries_df(sleepStartEnd)
     # Plot the timeseries
-    fig = fun.plot_sleep_level_time_series(sleepLevelTimeSeries_df)
+    fig = fun.plot_sleep_level_time_series(sleepLevelTimeSeries_df, colors=SLEEP_LEVEL_COLORS)
     st.plotly_chart(fig.to_dict())
 
-    # Plot activity level time series ------------------------------------------------------------------------------
+    # ----- Activity levels time series
     activityDate = date.strftime('%Y-%m-%d')
     fullActivityTimeseries = fun.get_activity_detail_timeseries(activityDate)
     activity_timeseries_df = fun.get_activity_timeseries_df(fullActivityTimeseries)
-    fig = fun.plot_activity_level_timeseries(activity_timeseries_df)
+    fig = fun.plot_activity_level_timeseries(activity_timeseries_df, colors=ACTIVITY_LEVEL_COLORS)
     st.plotly_chart(fig.to_dict())
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Bar plot for the number of steps aggregated by day
-st.subheader(f'Average number of steps per day of week')
+st.subheader(f'Averages per day of week')
+# -------------------- Bar plot for the number of steps aggregated by day of week
 # Get data
 dType = 'steps'
 steps_per_day_df = fun.get_df(dType=dType, addDateTimeCols=True)
-# steps_per_day_df['day'] = steps_per_day_df['dateTime'].dt.day_name()
-# st.write(steps_per_day_df)
+
 steps_per_day_df = steps_per_day_df.groupby('day_name').agg({'value': 'mean'}).reset_index(drop=False)
 steps_per_day_df['value'] = steps_per_day_df['value'].astype(int).round()
 steps_per_day_df = steps_per_day_df.rename(columns={'value': 'Steps', 'day_name': 'Day'})
-# steps_per_day_df = steps_per_day_df.sort_values(by='Day')
-fig = px.bar(steps_per_day_df, x='Day', y='Steps')
+fig = px.bar(steps_per_day_df, x='Day', y='Steps', title="Avg steps")
+fig.update_traces(marker_color=STEPS_COLOR['Steps'])
 st.plotly_chart(fig)
 
-# ----------------------------------------------------------------------------------------------------------------------
-# Stacked bar chart for the sleep levels duration
-st.subheader(f'Average duration of sleep levels per day of week')
+# -------------------- Stacked bar chart for the sleep levels duration
 # Get data
-dType = 'sleepLevelsData-data'
-sleep_levels_data = fun.get_df(dType=dType)
-
-sleep_levels_data['dateTime'] = sleep_levels_data['dateTime'].dt.date
-sleep_data_grouped = sleep_levels_data.groupby(['dateTime', 'level'])['value'].sum()
-sleep_data_pivot = sleep_data_grouped.unstack()
-sleep_data_pivot = sleep_data_pivot[['deep', 'light', 'rem', 'wake']]
-sleep_data_pivot = sleep_data_pivot.dropna()
-
-sleep_data_pivot['deep'] = sleep_data_pivot['deep'].astype(float)
-sleep_data_pivot['rem'] = sleep_data_pivot['rem'].astype(float)
-sleep_data_pivot['light'] = sleep_data_pivot['light'].astype(float)
-sleep_data_pivot['wake'] = sleep_data_pivot['wake'].astype(float)
-
-sleep_data_pivot['deep'] = sleep_data_pivot['deep'] / 60
-sleep_data_pivot['light'] = sleep_data_pivot['light'] / 60
-sleep_data_pivot['rem'] = sleep_data_pivot['rem'] / 60
-sleep_data_pivot['wake'] = sleep_data_pivot['wake'] / 60
-
-sleep_data_pivot = sleep_data_pivot.reset_index()
-sleep_data_pivot['dateTime'] = pd.to_datetime(sleep_data_pivot['dateTime'])
-sleep_data_pivot['day'] = sleep_data_pivot['dateTime'].dt.day_name()
-
-sleep_data_pivot = sleep_data_pivot.drop(columns=['dateTime'])
-cat_dtype = pd.CategoricalDtype(
-    categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], ordered=True)
-sleep_data_pivot['day'] = sleep_data_pivot['day'].astype(cat_dtype)
-sleep_data_pivot = sleep_data_pivot.groupby('day').agg({'deep': 'mean', 'rem': 'mean', 'light': 'mean', 'wake': 'mean'}).reset_index(
-    drop=False)
-sleep_data_pivot = sleep_data_pivot.reset_index(drop=True)
-sleep_data_pivot.set_index('day', inplace=True)
-sleep_data_pivot = sleep_data_pivot.loc[cat_dtype.categories]
+sleep_data_pivot = fun.get_sleep_data_pivot()
 
 fig = go.Figure(data=[
-    go.Bar(name='Deep', x=sleep_data_pivot.index, y=sleep_data_pivot['deep']),
-    go.Bar(name='REM', x=sleep_data_pivot.index, y=sleep_data_pivot['rem']),
-    go.Bar(name='Light', x=sleep_data_pivot.index, y=sleep_data_pivot['light']),
-    go.Bar(name='Wake', x=sleep_data_pivot.index, y=sleep_data_pivot['wake'])
+    go.Bar(name='Awake', x=sleep_data_pivot.index, y=sleep_data_pivot['wake'],
+               marker_color=SLEEP_LEVEL_COLORS['Awake']),
+    go.Bar(name='Light', x=sleep_data_pivot.index, y=sleep_data_pivot['light'],
+               marker_color=SLEEP_LEVEL_COLORS['Light']),
+    go.Bar(name='REM', x=sleep_data_pivot.index, y=sleep_data_pivot['rem'],
+               marker_color=SLEEP_LEVEL_COLORS['REM']),
+    go.Bar(name='Deep', x=sleep_data_pivot.index, y=sleep_data_pivot['deep'],
+           marker_color=SLEEP_LEVEL_COLORS['Deep'])
 ])
 
-fig.update_layout(barmode='stack', yaxis_title='Minutes')
+fig.update_layout(barmode='stack', yaxis_title='Minutes', title="Avg duration of sleep levels")
 st.plotly_chart(fig)
 
-# ----------------------------------------------------------------------------------------------------------------------
-# Stacked bar chart for the activity stages duration
-st.subheader(f'Average duration of activity stages per day of week')
+# -------------------- Stacked bar chart for the activity stages duration
 # Get data
-minutesFairlyActive_df = fun.get_df(dType="minutesFairlyActive").rename(columns={'value': 'Fairly Active'})
-minutesFairlyActive_df['Fairly Active'] = minutesFairlyActive_df['Fairly Active'].astype(int)
-minutesLightlyActive_df = fun.get_df(dType="minutesLightlyActive").rename(columns={'value': 'Lightly Active'})
-minutesLightlyActive_df['Lightly Active'] = minutesLightlyActive_df['Lightly Active'].astype(int)
-minutesSedentary_df = fun.get_df(dType="minutesSedentary").rename(columns={'value': 'Sedentary'})
-minutesSedentary_df['Sedentary'] = minutesSedentary_df['Sedentary'].astype(int)
-minutesVeryActive_df = fun.get_df(dType="minutesVeryActive").rename(columns={'value': 'Very Active'})
-minutesVeryActive_df['Very Active'] = minutesVeryActive_df['Very Active'].astype(int)
-df_list = [minutesFairlyActive_df, minutesLightlyActive_df, minutesSedentary_df, minutesVeryActive_df]
-activitySummary_stages_df = fun.merge_dataframes(df_list=df_list, common_col="dateTime", how="outer")
-
-activitySummary_stages_df['dateTime'] = activitySummary_stages_df['dateTime'].dt.date
-activity_data_pivot = activitySummary_stages_df.dropna()
-
-activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'].astype(float)
-activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'].astype(float)
-activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'].astype(float)
-activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'].astype(float)
-
-activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'] / 60
-activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'] / 60
-activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'] / 60
-activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'] / 60
-
-
-activity_data_pivot = activity_data_pivot.reset_index()
-activity_data_pivot['dateTime'] = pd.to_datetime(activity_data_pivot['dateTime'])
-activity_data_pivot['day'] = activity_data_pivot['dateTime'].dt.day_name()
-
-activity_data_pivot = activity_data_pivot.drop(columns=['dateTime'])
-cat_dtype = pd.CategoricalDtype(
-    categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], ordered=True)
-activity_data_pivot['day'] = activity_data_pivot['day'].astype(cat_dtype)
-activity_data_pivot = activity_data_pivot.groupby('day').agg({'Fairly Active': 'mean', 'Lightly Active': 'mean', 'Sedentary': 'mean', 'Very Active': 'mean' }).reset_index(
-    drop=False)
-activity_data_pivot = activity_data_pivot.reset_index(drop=True)
-activity_data_pivot.set_index('day', inplace=True)
-activity_data_pivot = activity_data_pivot.loc[cat_dtype.categories]
+activity_data_pivot = fun.get_activity_data_pivot()
 
 fig = go.Figure(data=[
-    go.Bar(name='Fairly Active', x=activity_data_pivot.index, y=activity_data_pivot['Fairly Active']),
-    go.Bar(name='Lightly Active', x=activity_data_pivot.index, y=activity_data_pivot['Lightly Active']),
-    go.Bar(name='Sedentary', x=activity_data_pivot.index, y=activity_data_pivot['Sedentary']),
-    go.Bar(name='Very Active', x=activity_data_pivot.index, y=activity_data_pivot['Very Active'])
+    go.Bar(name='Sedentary', x=activity_data_pivot.index, y=activity_data_pivot['Sedentary'],
+               marker_color=ACTIVITY_LEVEL_COLORS['Sedentary']),
+    go.Bar(name='Lightly Active', x=activity_data_pivot.index, y=activity_data_pivot['Lightly Active'],
+               marker_color=ACTIVITY_LEVEL_COLORS['Lightly Active']),
+    go.Bar(name='Fairly Active', x=activity_data_pivot.index, y=activity_data_pivot['Fairly Active'],
+           marker_color=ACTIVITY_LEVEL_COLORS['Fairly Active']),
+    go.Bar(name='Very Active', x=activity_data_pivot.index, y=activity_data_pivot['Very Active'],
+           marker_color=ACTIVITY_LEVEL_COLORS['Very Active'])
 ])
 
-fig.update_layout(barmode='stack', yaxis_title='Minutes')
+fig.update_layout(barmode='stack', yaxis_title='Minutes', title="Avg duration of activity levels")
 st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Area chart for the activity levels duration
 st.subheader(f'Activity status over time')
+# Area chart for the activity levels duration
 
 # Get data
-dType = 'minutesFairlyActive'
-minutesFairlyActive_df = fun.get_df(dType=dType)
-minutesFairlyActive_df = minutesFairlyActive_df.rename(columns={'value': 'fairly active'})
-
-dType = 'minutesVeryActive'
-minutesVeryActive_df = fun.get_df(dType=dType)
-minutesVeryActive_df = minutesVeryActive_df.rename(columns={'value': 'very active'})
-
-dType = 'minutesLightlyActive'
-minutesLightlyActive_df = fun.get_df(dType=dType)
-minutesLightlyActive_df = minutesLightlyActive_df.rename(columns={'value': 'lightly active'})
-
-# Merge data
-activity_df = minutesLightlyActive_df.merge(minutesFairlyActive_df, on='dateTime', how='left')
-activity_df = activity_df.merge(minutesVeryActive_df, on='dateTime', how='left')
-
-activity_df['lightly active'] = activity_df['lightly active'].astype(int)
-activity_df['fairly active'] = activity_df['fairly active'].astype(int)
-activity_df['very active'] = activity_df['very active'].astype(int)
-
+activity_df = fun.get_activity_df().drop(columns='Sedentary', axis=1)
 activity_df.set_index('dateTime', inplace=True)
 activity_df.index.name = None
 
 # Plot result
-st.area_chart(data=activity_df)
-
-
-# 3d bubble graph for Steps|Very Active|Sleep duration
-# Currently not in use
-# We leverage the bubble_df DataFrame in the next 3d bubble graph though
-
-dType = 'sleep-duration'
-sleep_duration_df = fun.get_df(dType=dType)
-sleep_duration_df = sleep_duration_df.rename(columns={'value': 'Sleep duration'})
-sleep_duration_df['Sleep duration'] = sleep_duration_df['Sleep duration'] / 60000
-
-dType = 'steps'
-steps_per_day_df = fun.get_df(dType=dType)
-steps_per_day_df = steps_per_day_df.rename(columns={'value': 'Steps'})
-
-bubble_df = steps_per_day_df.merge(minutesVeryActive_df, on='dateTime', how='left')
-bubble_df = bubble_df.merge(sleep_duration_df, on='dateTime', how='left')
-bubble_df = bubble_df.dropna()
-
-bubble_df['Steps'] = bubble_df['Steps'].astype(int)
-bubble_df['very active'] = bubble_df['very active'].astype(int)
-bubble_df['Sleep duration'] = bubble_df['Sleep duration'].astype(int)
+fig = px.area(activity_df, title='Activity over time', color_discrete_map=ACTIVITY_LEVEL_COLORS)
+st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# 3d bubble graph for sleep levels and coloring based on the number of steps
 st.subheader(f'Relationship between the sleep levels duration and number of steps')
-dType = "sleepSummary-stages"
-sleep_level_summary_df = fun.get_df(dType=dType)
+# 3d bubble graph for sleep levels and coloring based on the number of steps
+# Get data
+sleep_level_summary_df = fun.get_sleep_level_summary_df()
 
-sleep_level_summary_df = sleep_level_summary_df.drop("wake", axis=1)
-rename_cols = {
-    "deep": "Deep sleep minutes",
-    "light": "Light sleep minutes",
-    "rem": "REM minutes"
-}
-sleep_level_summary_df = sleep_level_summary_df.rename(columns=rename_cols)
-
-steps = bubble_df[['dateTime', 'Steps']]
-sleep_level_summary_df = sleep_level_summary_df.merge(steps, on='dateTime', how='left')
-
-sleep_level_summary_df['Light sleep minutes'] = sleep_level_summary_df['Light sleep minutes'].astype(int)
-sleep_level_summary_df['Deep sleep minutes'] = sleep_level_summary_df['Deep sleep minutes'].astype(int)
-sleep_level_summary_df['REM minutes'] = sleep_level_summary_df['REM minutes'].astype(int)
-sleep_level_summary_df['Steps'] = sleep_level_summary_df['Steps'].astype(float)
-
-sleep_level_summary_df = sleep_level_summary_df.drop_duplicates().dropna()
-
+# Plot data
 fig = px.scatter_3d(sleep_level_summary_df, x='Deep sleep minutes', y='Light sleep minutes', z='REM minutes',
                     color='Steps', color_continuous_scale='redor')
 
@@ -359,7 +208,7 @@ st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 st.subheader(f'Correlation Matrix')
-correlation_df = fun.heatmpaPlots()
+correlation_df = fun.heatmapPlots()
 corr_matrix = correlation_df.corr()
 
 # create the heatmap using Plotly
@@ -374,8 +223,9 @@ st.plotly_chart(fig)
 st.subheader(f'TimeSeries Comparison')
 options = st.multiselect(
     'Select Variables',
-    ['sleepEfficiency', 'Steps', 'deep', 'light', 'rem', 'wake', 'minutesFairlyActive', 'minutesLightlyActive', 'minutesSedentary', 'minutesVeryActive'],
-    ['deep', 'light', 'rem', 'wake'])
+    ['Sleep Efficiency', 'Steps', 'Deep Sleep', 'Light Sleep', 'REM Sleep', 'Awake', 'Fairly Active',
+     'Lightly Active', 'Sedentary', 'Very Active'],
+    ['Sleep Efficiency', 'Steps'])
 
 df = correlation_df.set_index('dateTime')
 # create an instance of the scaler
@@ -394,14 +244,46 @@ row = container.columns([2, 8])
 with row[0]:
     resample = st.selectbox('Resample/Smooth', resample_values)
 
+rename_cols = {
+    'sleepEfficiency': 'Sleep Efficiency',
+    'Steps': 'Steps',
+    'deep': 'Deep Sleep',
+    'light': 'Light Sleep',
+    'rem': 'REM Sleep',
+    'wake': 'Awake',
+    'minutesFairlyActive': 'Fairly Active',
+    'minutesLightlyActive': 'Lightly Active',
+    'minutesSedentary': 'Sedentary',
+    'minutesVeryActive': 'Very Active'
+
+}
+df_normalized = df_normalized.rename(columns=rename_cols)
+
 if resample == 'No resample/smooth':
-    smoothed_ts_resampled = df_normalized[options]
+    smoothed_ts_resampled = df_normalized[options].dropna()
 else:
     smoothed_ts_resampled = df_normalized[options].resample(resample).median()
 
+# Rename keys to match what's used in the widget
+sleep_level_colors = {key + " Sleep": val for key, val in SLEEP_LEVEL_COLORS.items() if key != 'Awake'}
+sleep_level_colors['Awake'] = SLEEP_LEVEL_COLORS['Awake']
+# Get all colours in one dictionary
+colors = {}
+for d in [sleep_level_colors, ACTIVITY_LEVEL_COLORS, STEPS_COLOR]:
+    for k, v in d.items():
+        colors[k] = v
+colors['Sleep Efficiency'] = 'green'
+
+st.write(smoothed_ts_resampled)
 with row[1]:
-    #st.line_chart(smoothed_ts_resampled)
-    st.line_chart(smoothed_ts_resampled)
+    fig = go.Figure()
+    for col in smoothed_ts_resampled.columns:
+        trace = go.Scatter(x=smoothed_ts_resampled.index,
+                           y=smoothed_ts_resampled[col],
+                           name=col,
+                           line_color=colors[col])
+        fig.add_trace(trace)
+    st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 st.subheader(f'AutoRegression for Steps and Sleep Efficiency')
@@ -433,7 +315,7 @@ fig_ar.update_yaxes(range=[result_ar.values.min(), result_ar.values.max()])
 st.plotly_chart(fig_ar, use_container_width=True)
 
 # ----------------------------------------------------------------------------------------------------------------------
-
+# LSTM Plot
 st.subheader(f'LSTM on Sleep Efficiency')
 col1, col2 = st.columns(2)
 

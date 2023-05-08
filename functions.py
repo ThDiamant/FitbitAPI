@@ -1,20 +1,32 @@
 import datetime as dt
-import streamlit as st
 import pandas as pd
 import pymongo as mongo
 import plotly.express as px
 import plotly.graph_objs as go
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
 from statsmodels.tsa.ar_model import AutoReg
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM
 from sklearn.metrics import mean_absolute_percentage_error
 
+# Globals
 USER_UUID = "3cc4e2ee-8c2f-4c25-955b-fe7f6ffcbe44"
 DB_NAME = "fitbit"
 DATA_COLLECTION_NAME = "fitbitCollection"
 DATE_FORMAT = "%d %B %Y"
+SLEEP_LEVEL_COLORS = {
+    'Awake': 'red',
+    'REM': 'lightblue',
+    'Light': 'blue',
+    'Deep': 'darkblue'
+}
+ACTIVITY_LEVEL_COLORS = {
+    'Sedentary': 'grey',
+    'Lightly Active': 'lightgreen',
+    'Fairly Active': 'gold',
+    'Very Active': 'orange'
+}
+STEPS_COLOR = {'Steps': 'purple'}
 
 def connect_to_db():
     """
@@ -53,7 +65,6 @@ def to_date(x):
         # Otherwise, raise an error
         raise ValueError("Input must be a string or datetime.date object")
 
-
 def daterange(start_date, end_date):
     """
     Inputs:
@@ -84,14 +95,12 @@ def to_datetime(date, time=""):
 
     return datetimeObj
 
-
 def check_dType(dType):
     fitbitCollection = connect_to_db()
     distinctTypes = fitbitCollection.distinct("type")
     if dType is not None:
         if dType not in distinctTypes:
             raise ValueError(f"dType needs to be one of {distinctTypes}.")
-
 
 def load_data(dType=None, date=None):
     """
@@ -117,7 +126,6 @@ def load_data(dType=None, date=None):
         }
 
     return fitbitCollection.find(myquery)
-
 
 def get_min_max_dates():
     """
@@ -199,7 +207,6 @@ def add_datetime_columns(df):
     else:
         raise Exception("Need a dateTime column in df.")
 
-
 def get_df(dType=None, date=None, addDateTimeCols=False):
     """
     Loads data from MongoDB into a dataframe.
@@ -249,6 +256,19 @@ def get_avg_sleep_eff(period):
 
     return avg_sleep_efficiency
 
+def get_avg_sleep_duration(period):
+    dType = 'sleep-duration'
+    sleep_duration_df = get_df(dType=dType)
+    # Filter based on the selected period
+    sleep_duration_df['dateTime'] = pd.to_datetime(sleep_duration_df['dateTime'])
+    sleep_duration_df = sleep_duration_df.set_index('dateTime')
+    sleep_duration_df = sleep_duration_df.loc[(sleep_duration_df.index >= period[0]) & (sleep_duration_df.index <= period[1])]
+
+    # Convert sleep duration from ms to hours
+    sleep_duration_df['value'] = sleep_duration_df['value'] / 3600000
+    tot_avg_sleep_duration = round(sleep_duration_df['value'].mean(), 1)
+    return tot_avg_sleep_duration
+
 def get_avg_steps(period):
     dType = 'steps'
     steps_df = get_df(dType=dType)
@@ -266,10 +286,20 @@ def avg_num_min_each_stage_ser(period):
     dType = "sleepSummary-stages"
     sleep_level_summary_df = get_df(dType=dType)
 
+    # Rename columns
+    new_col_names = {
+        "wake": "Awake         ",# Extra spaces so that the two bar charts appear as the same size
+        "rem": "REM           ",# Hacking, am I right? :P
+        "light": "Light          ",
+        "deep": "Deep          "
+    }
+    sleep_level_summary_df = sleep_level_summary_df.rename(columns=new_col_names)
+
     sleep_level_summary_df['dateTime'] = pd.to_datetime(sleep_level_summary_df['dateTime'])
     sleep_level_summary_df = sleep_level_summary_df.set_index('dateTime')
     # Filter based on the selected period
-    sleep_level_summary_df = sleep_level_summary_df.loc[(sleep_level_summary_df.index >= period[0]) & (sleep_level_summary_df.index <= period[1])]
+    sleep_level_summary_df = sleep_level_summary_df.loc[(sleep_level_summary_df.index >= period[0]) &
+                                                        (sleep_level_summary_df.index <= period[1])]
 
     # Get series with total avg time (min) spent in each sleep stage
     avg_min_stage_ser = (sleep_level_summary_df
@@ -279,24 +309,14 @@ def avg_num_min_each_stage_ser(period):
 
     return avg_min_stage_ser
 
-def plot_bar_from_ser(ser, title, x_axis_title, y_axis_title):
+def plot_pie_from_ser(ser, title, colors):
+    # For some reason marker_colors can't be a dict, but either a list or a pd.series
+    colors = pd.Series(list(colors.values()),
+                       index=pd.MultiIndex.from_tuples(colors.keys()))
     # Create a bar chart using plotly.graph_objects
-    fig = go.Figure(go.Bar(x=ser.values,
-                                         y=ser.index,
-                                         orientation='h',
-                                         marker_color='green'))
-    fig.update_layout(
-        title=title,
-        xaxis_title=x_axis_title,
-        yaxis_title=y_axis_title,
-        font=dict(family='Arial', size=12)
-    )
-
-    return fig
-
-def plot_pie_from_ser(ser, title):
-    # Create a bar chart using plotly.graph_objects
-    fig = go.Figure(data=go.Pie(labels=ser.index, values=ser.values))
+    fig = go.Figure(data=go.Pie(labels=ser.index,
+                                values=ser.values,
+                                marker_colors=colors))
     fig.update_layout(
         title=title,
         font=dict(family='Arial', size=12)
@@ -312,15 +332,15 @@ def get_activity_df():
 
     dType = 'minutesLightlyActive'
     minutesLightlyActive_df = get_df(dType=dType)
-    minutesLightlyActive_df = minutesLightlyActive_df.rename(columns={'value': 'Lightly active'})
+    minutesLightlyActive_df = minutesLightlyActive_df.rename(columns={'value': 'Lightly Active'})
 
     dType = 'minutesFairlyActive'
     minutesFairlyActive_df = get_df(dType=dType)
-    minutesFairlyActive_df = minutesFairlyActive_df.rename(columns={'value': 'Fairly active'})
+    minutesFairlyActive_df = minutesFairlyActive_df.rename(columns={'value': 'Fairly Active'})
 
     dType = 'minutesVeryActive'
     minutesVeryActive_df = get_df(dType=dType)
-    minutesVeryActive_df = minutesVeryActive_df.rename(columns={'value': 'Very active'})
+    minutesVeryActive_df = minutesVeryActive_df.rename(columns={'value': 'Very Active'})
 
     # Merge data
     activity_df = minutesSedentary_df.merge(minutesLightlyActive_df, on='dateTime', how='left')
@@ -328,9 +348,9 @@ def get_activity_df():
     activity_df = activity_df.merge(minutesVeryActive_df, on='dateTime', how='left')
 
     activity_df['Sedentary'] = activity_df['Sedentary'].astype(int)
-    activity_df['Lightly active'] = activity_df['Lightly active'].astype(int)
-    activity_df['Fairly active'] = activity_df['Fairly active'].astype(int)
-    activity_df['Very active'] = activity_df['Very active'].astype(int)
+    activity_df['Lightly Active'] = activity_df['Lightly Active'].astype(int)
+    activity_df['Fairly Active'] = activity_df['Fairly Active'].astype(int)
+    activity_df['Very Active'] = activity_df['Very Active'].astype(int)
 
     return activity_df
 
@@ -342,7 +362,7 @@ def get_avg_min_activity_ser(period):
     # Filter based on the selected period
     activity_df = activity_df.loc[(activity_df.index >= period[0]) & (activity_df.index <= period[1])]
 
-
+    # Get the average minutes spent in each activity level
     avg_min_activity_ser = (activity_df
                             .mean().round(0)
                             .astype(int))
@@ -373,7 +393,6 @@ def get_sleep_start_end(dates):
         sleepStartEnd_list.append(sleepStartEnd)
 
     return sleepStartEnd_list
-
 
 def expand_time_series(query_result, step=10):
     """
@@ -413,7 +432,6 @@ def expand_time_series(query_result, step=10):
 
     return sleepLevelTimeSeries
 
-
 def create_sleep_level_ts_df(sleepLevelTimeSeries):
     """
     Creates a dataframe from the sleep level time series.
@@ -436,7 +454,6 @@ def create_sleep_level_ts_df(sleepLevelTimeSeries):
     sleepLevelTimeSeries_df['sleepStageNum'] = sleepLevelTimeSeries_df['sleepStage'].cat.codes
 
     return sleepLevelTimeSeries_df
-
 
 def get_sleep_level_timeseries_df(sleepStartEnd):
     """
@@ -473,11 +490,9 @@ def get_sleep_level_timeseries_df(sleepStartEnd):
 
     return sleepLevelTimeSeries_df
 
-
-def plot_sleep_level_time_series(sleepLevelTimeSeries_df):
+def plot_sleep_level_time_series(sleepLevelTimeSeries_df, colors):
     global DATE_FORMAT
 
-    colors = {'Awake': 'red', 'REM': 'lightblue', 'Light': 'blue', 'Deep': 'darkblue'}
     # Sleep date
     date = sleepLevelTimeSeries_df['dateTime'].iloc[0].strftime("%d %B %Y")
 
@@ -498,7 +513,6 @@ def plot_sleep_level_time_series(sleepLevelTimeSeries_df):
 
     # fig.show()
     return fig
-
 
 # Functions for activity level data ----------------------------------------
 def get_activity_detail_timeseries(date):
@@ -549,7 +563,6 @@ def get_activity_detail_timeseries(date):
 
     return fullActivityTimeseries
 
-
 def get_activity_timeseries_df(fullActivityTimeseries):
     activity_timeseries_df = pd.DataFrame(fullActivityTimeseries, columns=["dateTime", "activityLevel"]).sort_values(
         by='dateTime')
@@ -571,10 +584,7 @@ def get_activity_timeseries_df(fullActivityTimeseries):
 
     return activity_timeseries_df
 
-
-def plot_activity_level_timeseries(activity_timeseries_df):
-    colors = {'Sedentary': 'red', 'Lightly Active': 'lightblue', 'Fairly Active': 'blue', 'Very Active': 'darkblue'}
-
+def plot_activity_level_timeseries(activity_timeseries_df, colors):
     fig = px.scatter(activity_timeseries_df, x="dateTime", y="activityLevelNum",
                      color="activityLevel", color_discrete_map=colors)
 
@@ -594,6 +604,145 @@ def plot_activity_level_timeseries(activity_timeseries_df):
 
     # fig.show()
     return fig
+
+def get_sleep_data_pivot():
+    dType = 'sleepLevelsData-data'
+    sleep_levels_data = get_df(dType=dType)
+
+    sleep_levels_data['dateTime'] = sleep_levels_data['dateTime'].dt.date
+    sleep_data_grouped = sleep_levels_data.groupby(['dateTime', 'level'])['value'].sum()
+    sleep_data_pivot = sleep_data_grouped.unstack()
+    sleep_data_pivot = sleep_data_pivot[['deep', 'light', 'rem', 'wake']]
+    sleep_data_pivot = sleep_data_pivot.dropna()
+
+    sleep_data_pivot['deep'] = sleep_data_pivot['deep'].astype(float)
+    sleep_data_pivot['rem'] = sleep_data_pivot['rem'].astype(float)
+    sleep_data_pivot['light'] = sleep_data_pivot['light'].astype(float)
+    sleep_data_pivot['wake'] = sleep_data_pivot['wake'].astype(float)
+
+    sleep_data_pivot['deep'] = sleep_data_pivot['deep'] / 60
+    sleep_data_pivot['light'] = sleep_data_pivot['light'] / 60
+    sleep_data_pivot['rem'] = sleep_data_pivot['rem'] / 60
+    sleep_data_pivot['wake'] = sleep_data_pivot['wake'] / 60
+
+    sleep_data_pivot = sleep_data_pivot.reset_index()
+    sleep_data_pivot['dateTime'] = pd.to_datetime(sleep_data_pivot['dateTime'])
+    sleep_data_pivot['day'] = sleep_data_pivot['dateTime'].dt.day_name()
+
+    sleep_data_pivot = sleep_data_pivot.drop(columns=['dateTime'])
+    cat_dtype = pd.CategoricalDtype(
+        categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+        ordered=True)
+    sleep_data_pivot['day'] = sleep_data_pivot['day'].astype(cat_dtype)
+    sleep_data_pivot = (sleep_data_pivot
+                        .groupby('day')
+                        .agg({'deep': 'mean', 'rem': 'mean', 'light': 'mean', 'wake': 'mean'})
+                        .reset_index(drop=False))
+    sleep_data_pivot = sleep_data_pivot.reset_index(drop=True)
+    sleep_data_pivot.set_index('day', inplace=True)
+    sleep_data_pivot = sleep_data_pivot.loc[cat_dtype.categories]
+
+    return sleep_data_pivot
+
+def get_activity_data_pivot():
+    minutesFairlyActive_df = get_df(dType="minutesFairlyActive").rename(columns={'value': 'Fairly Active'})
+    minutesFairlyActive_df['Fairly Active'] = minutesFairlyActive_df['Fairly Active'].astype(int)
+    minutesLightlyActive_df = get_df(dType="minutesLightlyActive").rename(columns={'value': 'Lightly Active'})
+    minutesLightlyActive_df['Lightly Active'] = minutesLightlyActive_df['Lightly Active'].astype(int)
+    minutesSedentary_df = get_df(dType="minutesSedentary").rename(columns={'value': 'Sedentary'})
+    minutesSedentary_df['Sedentary'] = minutesSedentary_df['Sedentary'].astype(int)
+    minutesVeryActive_df = get_df(dType="minutesVeryActive").rename(columns={'value': 'Very Active'})
+    minutesVeryActive_df['Very Active'] = minutesVeryActive_df['Very Active'].astype(int)
+    df_list = [minutesFairlyActive_df, minutesLightlyActive_df, minutesSedentary_df, minutesVeryActive_df]
+    activitySummary_stages_df = merge_dataframes(df_list=df_list, common_col="dateTime", how="outer")
+
+    activitySummary_stages_df['dateTime'] = activitySummary_stages_df['dateTime'].dt.date
+    activity_data_pivot = activitySummary_stages_df.dropna()
+
+    activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'].astype(float)
+    activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'].astype(float)
+    activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'].astype(float)
+    activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'].astype(float)
+
+    activity_data_pivot['Fairly Active'] = activity_data_pivot['Fairly Active'] / 60
+    activity_data_pivot['Lightly Active'] = activity_data_pivot['Lightly Active'] / 60
+    activity_data_pivot['Sedentary'] = activity_data_pivot['Sedentary'] / 60
+    activity_data_pivot['Very Active'] = activity_data_pivot['Very Active'] / 60
+
+    activity_data_pivot = activity_data_pivot.reset_index()
+    activity_data_pivot['dateTime'] = pd.to_datetime(activity_data_pivot['dateTime'])
+    activity_data_pivot['day'] = activity_data_pivot['dateTime'].dt.day_name()
+
+    activity_data_pivot = activity_data_pivot.drop(columns=['dateTime'])
+    cat_dtype = pd.CategoricalDtype(
+        categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+        ordered=True)
+    activity_data_pivot['day'] = activity_data_pivot['day'].astype(cat_dtype)
+    activity_data_pivot = (activity_data_pivot
+                           .groupby('day')
+                           .agg({'Fairly Active': 'mean',
+                                 'Lightly Active': 'mean',
+                                 'Sedentary': 'mean',
+                                 'Very Active': 'mean'})
+                           .reset_index(drop=False))
+    activity_data_pivot = activity_data_pivot.reset_index(drop=True)
+    activity_data_pivot.set_index('day', inplace=True)
+    activity_data_pivot = activity_data_pivot.loc[cat_dtype.categories]
+
+    return activity_data_pivot
+
+
+def get_bubble_df():
+    dType = 'sleep-duration'
+    sleep_duration_df = get_df(dType=dType)
+    sleep_duration_df = sleep_duration_df.rename(columns={'value': 'Sleep duration'})
+    sleep_duration_df['Sleep duration'] = sleep_duration_df['Sleep duration'] / 60000
+
+    dType = 'steps'
+    steps_per_day_df = get_df(dType=dType)
+    steps_per_day_df = steps_per_day_df.rename(columns={'value': 'Steps'})
+
+    dType = 'minutesVeryActive'
+    minutesVeryActive_df = get_df(dType=dType)
+    minutesVeryActive_df = minutesVeryActive_df.rename(columns={'value': 'Very Active'})
+
+    bubble_df = steps_per_day_df.merge(minutesVeryActive_df, on='dateTime', how='left')
+    bubble_df = bubble_df.merge(sleep_duration_df, on='dateTime', how='left')
+    bubble_df = bubble_df.dropna()
+
+    bubble_df['Steps'] = bubble_df['Steps'].astype(int)
+    bubble_df['Very Active'] = bubble_df['Very Active'].astype(int)
+    bubble_df['Sleep duration'] = bubble_df['Sleep duration'].astype(int)
+
+    return bubble_df
+
+
+def get_sleep_level_summary_df():
+    dType = "sleepSummary-stages"
+    sleep_level_summary_df = get_df(dType=dType)
+
+    rename_cols = {
+        "deep": "Deep sleep minutes",
+        "light": "Light sleep minutes",
+        "rem": "REM minutes"
+    }
+    sleep_level_summary_df = (sleep_level_summary_df
+                              .drop("wake", axis=1)
+                              .rename(columns=rename_cols))
+
+    bubble_df = get_bubble_df()
+    steps = bubble_df[['dateTime', 'Steps']]
+
+    sleep_level_summary_df = sleep_level_summary_df.merge(steps, on='dateTime', how='left')
+
+    sleep_level_summary_df['Light sleep minutes'] = sleep_level_summary_df['Light sleep minutes'].astype(int)
+    sleep_level_summary_df['Deep sleep minutes'] = sleep_level_summary_df['Deep sleep minutes'].astype(int)
+    sleep_level_summary_df['REM minutes'] = sleep_level_summary_df['REM minutes'].astype(int)
+    sleep_level_summary_df['Steps'] = sleep_level_summary_df['Steps'].astype(float)
+
+    sleep_level_summary_df = sleep_level_summary_df.drop_duplicates().dropna()
+
+    return sleep_level_summary_df
 
 def merge_dataframes(df_list, common_col, how="outer"):
     """
@@ -617,12 +766,12 @@ def merge_dataframes(df_list, common_col, how="outer"):
     # return the merged dataframe
     return merged_df
 
-def heatmpaPlots():
+def heatmapPlots():
     """
     The function retrieves data from various sources and merges them into a single dataframe for
     plotting.
     
-    :return: The function `heatmpaPlots()` is returning a merged dataframe that includes data on sleep
+    :return: The function `heatmapPlots()` is returning a merged dataframe that includes data on sleep
     efficiency, steps, sleep summary stages, and activity summary stages. The data is merged based on
     the common column "dateTime".
     """
@@ -652,7 +801,6 @@ def heatmpaPlots():
     df_list = [sleepEfficiency_df, steps_df, sleepSummary_stages_df, activitySummary_stages_df]
 
     return merge_dataframes(df_list=df_list, common_col="dateTime", how="outer")
-
 
 def AutoReg_TS(df, target, lag, steps):
     # Load your data
@@ -696,8 +844,6 @@ def AutoReg_TS(df, target, lag, steps):
 
     # Print the forecasted steps value
     return ts, last_index
-
-
 
 # Calculate the mean absolute percentage error
 def mape(actuals, preds):
