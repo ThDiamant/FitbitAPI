@@ -264,24 +264,14 @@ if resample == 'No resample/smooth':
 else:
     smoothed_ts_resampled = df_normalized[options].resample(resample).median()
 
-# Rename keys to match what's used in the widget
-sleep_level_colors = {key + " Sleep": val for key, val in SLEEP_LEVEL_COLORS.items() if key != 'Awake'}
-sleep_level_colors['Awake'] = SLEEP_LEVEL_COLORS['Awake']
-# Get all colours in one dictionary
-colors = {}
-for d in [sleep_level_colors, ACTIVITY_LEVEL_COLORS, STEPS_COLOR]:
-    for k, v in d.items():
-        colors[k] = v
-colors['Sleep Efficiency'] = 'green'
-
-st.write(smoothed_ts_resampled)
+colors_dict = fun.get_new_complete_colors()
 with row[1]:
     fig = go.Figure()
     for col in smoothed_ts_resampled.columns:
         trace = go.Scatter(x=smoothed_ts_resampled.index,
                            y=smoothed_ts_resampled[col],
                            name=col,
-                           line_color=colors[col])
+                           line_color=colors_dict[col])
         fig.add_trace(trace)
     st.plotly_chart(fig)
 

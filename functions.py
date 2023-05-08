@@ -716,7 +716,6 @@ def get_bubble_df():
 
     return bubble_df
 
-
 def get_sleep_level_summary_df():
     dType = "sleepSummary-stages"
     sleep_level_summary_df = get_df(dType=dType)
@@ -743,6 +742,23 @@ def get_sleep_level_summary_df():
     sleep_level_summary_df = sleep_level_summary_df.drop_duplicates().dropna()
 
     return sleep_level_summary_df
+
+def get_new_complete_colors():
+    global SLEEP_LEVEL_COLORS
+    global ACTIVITY_LEVEL_COLORS
+    global STEPS_COLOR
+
+    # Rename keys to match what's used in the widget
+    sleep_level_colors = {key + " Sleep": val for key, val in SLEEP_LEVEL_COLORS.items() if key != 'Awake'}
+    sleep_level_colors['Awake'] = SLEEP_LEVEL_COLORS['Awake']
+    # Get all colours in one dictionary
+    colors = {}
+    for d in [sleep_level_colors, ACTIVITY_LEVEL_COLORS, STEPS_COLOR]:
+        for k, v in d.items():
+            colors[k] = v
+    colors['Sleep Efficiency'] = 'green'
+
+    return colors
 
 def merge_dataframes(df_list, common_col, how="outer"):
     """
