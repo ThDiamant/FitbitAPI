@@ -1,4 +1,6 @@
 import datetime as dt
+import fitbit
+import requests as req
 import pandas as pd
 import pymongo as mongo
 import plotly.express as px
@@ -14,6 +16,7 @@ USER_UUID = "3cc4e2ee-8c2f-4c25-955b-fe7f6ffcbe44"
 DB_NAME = "fitbit"
 DATA_COLLECTION_NAME = "fitbitCollection"
 DATE_FORMAT = "%d %B %Y"
+START_DATE = "2023-03-29"
 SLEEP_LEVEL_COLORS = {
     'Awake': 'red',
     'REM': 'lightblue',
@@ -27,6 +30,252 @@ ACTIVITY_LEVEL_COLORS = {
     'Very Active': 'orange'
 }
 STEPS_COLOR = {'Steps': 'purple'}
+
+
+def check_create_collection(mongoDb, collection):
+    """ 
+    Checks if collection exists in mongoDb, and if it doesn't it creates it.
+    """
+    if collection in mongoDb.list_collection_names():
+        print(f"Collection {collection} already exists, proceeding.")
+    else:
+        mongoDb.create_collection(collection)
+        print(f"Collection {collection} created.")
+
+    return mongoDb[collection]
+
+
+def check_create_index(collection, index, indexName):
+    """ 
+    Checks if index with indexName exists in collection, and if it doesn't it creates it.
+    """
+    # Check if the index exists
+    if indexName not in [index['name'] for index in collection.list_indexes()]:
+        # Create the index if it does not exist
+        collection.create_index(index, name = indexName, unique=True)
+        print(f"Index {indexName} created.")
+    else:
+        print(f"Index {indexName} already exists, proceeding.")
+
+def create_document(documentType, dataDict):
+    """ 
+    Inputs:
+        > documentType <str>: The type entry of the document to be created.
+        > dataDict <dict>: The 'data' entry of the document to be created.
+
+    Creates a document to be inserted into MongoDB.
+    """
+    global USER_UUID
+
+    myDocument = {}
+    myDocument["id"] = USER_UUID
+    myDocument["type"] = documentType
+    myDocument["data"] = dataDict
+
+    return myDocument
+
+     
+def save_document(myCollection, myDocument):
+    """
+    Inputs:
+        > myCollection: MongoDB collection in which we want to add myDocument.
+        > myDocument <dict>: Document to be inserted.
+    Adds myDocument in myCollection and checks if it was inserted successfully. If
+    If myDocument already exists in myCollection, if it cannot find it, a ValueError
+    is raised.
+    """
+
+    try:
+        # Insert myDocument in Mongo
+        result = myCollection.insert_one(myDocument)
+        # Check if the document was inserted successfully
+        if not result.inserted_id:
+            raise Exception(f"Document {myDocument} not inserted.")
+        print(f"Inserted {myDocument}")
+    # If record already exists
+    except mongo.errors.DuplicateKeyError:
+        # Try to find the document in the DB
+        query = {
+            'type': myDocument['type'],
+            'data.dateTime': myDocument['data']['dateTime']
+        }
+
+        existing_doc = myCollection.find_one(query)
+        if existing_doc is None:
+            # Something went wrong, raise an error
+            raise ValueError("Cannot find existing document in the collection.")
+        else:
+            # Document already exists, ignore it
+            pass
+    except Exception as e:
+        print('Error: %s' % e)
+    
+
+def create_and_save_document(fitbitCollection, documentType, dataDict):
+    """ 
+    Creates and saves document into fitbitCollection
+    """
+    dataDocument = create_document(documentType, dataDict)
+    save_document(fitbitCollection, dataDocument)
+
+
+def to_datetime(date, time = ""):
+    """
+    Converts date (str or datetime.date) into datetime.datetime. If a time argument is given, it includes it
+    in the datetime.datetime object it returns.
+    """
+
+    if isinstance(date, str):
+        datetimeObj = dt.datetime.fromisoformat(date)
+    elif isinstance(date, dt.date):
+        datetimeObj = dt.datetime.combine(date, dt.datetime.min.time())
+    else:
+        raise ValueError("Unsupported type for date. It should be either a string or a datetime.date object.")
+    
+    if time != "":
+        datetimeObj = dt.datetime.combine(datetimeObj, dt.datetime.strptime(time, '%H:%M:%S').time())
+    
+    return datetimeObj
+
+
+def get_summary_key_data(sleepSummaryData, sleepSummaryDataKey, single_date):
+    """
+    Input:
+        > sleepSummaryData <dict>: Contains the sleep data from the Fitbit API reponse under the 'summary' key.
+        > single_date <datetime.date>: The date the data of which we parse.
+    Output:
+        > documentType <str>: The 'type' key of the document to be inserted in MongoDB.
+        > dataDict <dict>: The 'data' key of the document to be insterted in MongoDB.
+
+    This function parses through the data the Fitbit API gives us for a single day and returns
+    only the data under the 'summary' key that we are interested in keeping in our MongoDB. 
+    More specifically, it returns the type of the entry, and the relevant data for each key we decide to keep.
+    """
+
+    # Dictionary that will hold the 'data' entry of the document
+    dataDict = {}
+    documentType = "sleepSummary-{}".format(sleepSummaryDataKey)
+
+    dataDict["dateTime"] = to_datetime(single_date)
+    if sleepSummaryDataKey == "stages":
+        for stage in sleepSummaryData[sleepSummaryDataKey].keys():
+            dataDict[stage] = sleepSummaryData[sleepSummaryDataKey][stage]
+    else:
+        dataDict[sleepSummaryDataKey] = sleepSummaryData[sleepSummaryDataKey]
+
+    return documentType, dataDict
+
+def daterange(start_date, end_date):
+    """
+    Inputs:
+        start_date, end_date: Can be either string or datetime.date
+
+    Returns all dates in [start_date, end_date] as datetime.date objects.
+    """
+    start_date = to_date(start_date)
+    end_date = to_date(end_date)
+    for n in range(int((end_date - start_date).days)):
+        yield start_date + dt.timedelta(n)
+
+def to_date(x):
+    """
+    Returns x as a datetime.date() object.
+    """
+    if isinstance(x, str):
+        # If input is a string, parse it as a date
+        return dt.datetime.strptime(x, "%Y-%m-%d").date()
+    elif isinstance(x, dt.date):
+        # If input is already a date object, return it
+        return x
+    else:
+        # Otherwise, raise an error
+        raise ValueError("Input must be a string or datetime.date object")
+
+
+def get_sleep_data(date, accessToken):
+    """
+    Inputs:
+        - date <str> (yyyy-mm-dd): Date for which we want to pull data.
+        
+    Returns the data related to sleep for <date> from the Fitbit API. 
+    """
+
+    global START_DATE
+        
+    date = to_date(date)
+    start_date = to_date(START_DATE)
+
+    # Check date value
+    if date < start_date:
+        raise ValueError("date cannot be before {}".format(start_date))
+    
+    # Make API get request
+    headers = {
+        'accept': 'application/json',
+        'authorization': 'Bearer {}'.format(accessToken),
+    }
+    try:
+        response = req.get('https://api.fitbit.com/1.2/user/-/sleep/date/{}.json'.format(date), 
+                           headers = headers)
+    except fitbit.exceptions.HTTPTooManyRequests as e:
+        tryAfterMin = e.retry_after_secs/60
+        errorMessage = str(e) + ", please try again after {:.1f} min.".format(tryAfterMin)
+        raise Exception(errorMessage)
+
+    return response.json()
+
+
+def get_activity_data(date, authClient):
+    """
+    Inputs:
+        - date <str> (yyyy-mm-dd): Date we want the data of.
+    
+    Returns activity data for the specified date. Activity is quantified in terms of the elements of the resources list
+    that is defined inside the function.
+    """
+    
+    global START_DATE
+
+    date = to_date(date)
+    start_date = to_date(START_DATE)
+
+    # Check date value
+    if date < start_date:
+        raise ValueError("date cannot be before {}".format(start_date))
+   
+    # Dictionary where data returned by the API will be stored
+    data = {}
+
+    # Different kinds of resources that quantify activity
+    resources = [
+        "minutesSedentary",
+        "minutesLightlyActive",
+        "minutesFairlyActive",
+        "minutesVeryActive",
+        "steps"
+    ]
+    
+    try:
+        # A separate API call is made for each resource
+        for resource in resources:
+            resourceString = "activities/" + resource
+            # detailString can be one of 1min, 5min, 15min
+            if resource == "steps":
+                # Thought this might make more sense, feel free to change it if you think otherwise
+                detailString = "1min"
+            else:
+                detailString = "15min"
+            
+            # Use fitbit module to make the API get request
+            data[resource] = authClient.intraday_time_series(resourceString, 
+                                                               date, 
+                                                               detail_level = detailString)
+    except fitbit.exceptions.HTTPTooManyRequests as e:
+        tryAfterMin = e.retry_after_secs/60
+        errorMessage = str(e) + ", please try again after {:.1f} min.".format(tryAfterMin)
+        raise Exception(errorMessage)
+        
+    return data
 
 def connect_to_db():
     """
