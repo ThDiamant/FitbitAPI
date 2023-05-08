@@ -91,7 +91,6 @@ def save_document(myCollection, myDocument):
         # Check if the document was inserted successfully
         if not result.inserted_id:
             raise Exception(f"Document {myDocument} not inserted.")
-        print(f"Inserted {myDocument}")
     # If record already exists
     except mongo.errors.DuplicateKeyError:
         # Try to find the document in the DB

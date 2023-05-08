@@ -338,5 +338,37 @@ The final step of the article has to do with the usage of ML techique to the dat
 
 
 
+## Streaming Fitbit data via Python
+
+Fitbit supports the creation of subscription on specific endpoints. Although, a server is required in order be used for the communication and the creation of the subscribers. Given the absence of the server, we implemented a manual logic in order to support stream operation.
+
+It is expected that a streaming application should remain running as long as we need to. Given that, we used a `while True` loop with a sleep of 15 minutes between the re-execution of the code. 
+
+The next step is the fetching of the new data. Every 15 minutes a request is sending in order to get the data of the target date (today). Also, when we spot a change in the day we send two requests, one for the new day and one for the previous, to make sure that we wont lose any data. It is important to mention that the time is set to 15 minutes in order to avoid reaching the limit of 150 requests per hour.
+
+One last important step is that when we pull the data, we are using only the data which have been generate at least 15 minutes before. Fitbit has a delay in the synchronization of the data so if we fetch all the data we are going to have wrong values e.g. steps are 0 will we were walking.
+
+To sum-up, the code which was used for the streaming functionality is the following:
+
+``` python
+currentDate = dt.datetime.now().date()
+while True:
+    try:
+        # Use now before 15 minutes. This is due to the fact that fitbit does not update it's data right away 
+        now = dt.datetime.now() - dt.timedelta(hours=0, minutes=15)
+        single_date = now.date()
+
+        if (now.day != currentDate.day):
+            # Make sure that the date from the previous date have been imported
+            importData(currentDate)
+            currentDate = now
+        importData(single_date)
+    except Exception as e:
+        print('Error: %s' % e)
+
+    # Wait for 15 minutes before making the next request
+    # By doing so we can make sure that threshold of 150 queries per hour wont be reached
+    tm.sleep(15*60)
+```
 
 pip install plotly scikit-learn scipy matplotlib

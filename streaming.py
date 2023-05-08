@@ -55,7 +55,6 @@ def importData(targetDate):
                             # Convert string date to datetime.datetime so that's saved correctly in mongo
                             dataDict["dateTime"] = fun.to_datetime(dataPoint["dateTime"])
                             if (dataDict["dateTime"] > now):
-                                print(f"Date {dataDict['dateTime']} is after {now}")
                                 continue
                             dataDict["level"] = dataPoint["level"]
                             dataDict["value"] = dataPoint["seconds"]
@@ -65,7 +64,7 @@ def importData(targetDate):
                 # Convert datetime.date to datetime.datetime so that's saved correctly in mongo
                 dataDict["dateTime"] = fun.to_datetime(targetDate)
                 if (dataDict["dateTime"] > now):
-                    print(f"Date {dataDict['dateTime']} is after {now}")
+                    continue
                 else:
                     if isinstance(sleepData[sleepDataKey], str):
                         dataDict["value"] = fun.to_datetime(sleepData[sleepDataKey])
@@ -95,7 +94,6 @@ def importData(targetDate):
                     dataDict = {}
                     dataDict["dateTime"] = fun.to_datetime(oneDayActivityData[activityTypeKey][key][0]["dateTime"])
                     if (dataDict["dateTime"] > now):
-                        print(f"Date {dataDict['dateTime']} is after {now}")
                         continue
                     dataDict["value"] = int(oneDayActivityData[activityTypeKey][key][0]["value"])
                     fun.create_and_save_document(fitbitCollection, documentType, dataDict)
@@ -104,7 +102,6 @@ def importData(targetDate):
                         dataDict = {}
                         dataDict["dateTime"] = fun.to_datetime(targetDate, time = dataPoint["time"])
                         if (dataDict["dateTime"] > now):
-                            print(f"Date {dataDict['dateTime']} is after {now}")
                             continue
                         dataDict["value"] = int(dataPoint["value"])
                         fun.create_and_save_document(fitbitCollection, documentType, dataDict)
@@ -137,7 +134,7 @@ skipKeys = ["levels", "infoCode", "logId", "logType", "type", "dateOfSleep"]
 currentDate = dt.datetime.now().date()
 while True:
     try:
-        # Use now before 15 minutes. This is due to the fact that fitbit does not update it's data right away
+        # Use now before 15 minutes. This is due to the fact that fitbit does not update it's data right away 
         now = dt.datetime.now() - dt.timedelta(hours=0, minutes=15)
         single_date = now.date()
 
