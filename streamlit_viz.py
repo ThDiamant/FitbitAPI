@@ -95,28 +95,6 @@ with col2:
     st.plotly_chart(avg_min_activity_fig, use_container_width=True)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Comments on the comclusions we can draw from these plots
-
-st.write(" We can see here that the person wearing the Fitbit seems to be getting adequate sleep in general, given that"
-         "most experts reccommend 7-9 hours of sleep per night. Additionally this person seems to be a bit of a "
-         "nightowl sleeping generally around midnight or even past midnight."
-         ""
-         "This person is also quite active achieving the general goal of 10.000 steps per day on average."
-         ""
-         "Another interesting conclusion is the fact that the distributions of the sleep and activity levels seem to be"
-         "quite robust. We can see that by selecting different ranges of dates to consider, both with respect to the "
-         "number of days, as well as the start and end dates. "
-         ""
-         "Regarding sleep, we see that Light Sleep accounts for 50% of the sleep stages, with the next larger sleep "
-         "stage being REM sleep with roughly 20% of the sleep."
-         ""
-         "Similarly, we see that more that activity of various levels, accounts for more than 25% of the users state, "
-         "with the rest corresponding to the wearer being sedentary. One first conclusion, could be that hitting the"
-         "10k step mark, equals to being active for 1/4 of the day."
-         "")
-
-
-# ----------------------------------------------------------------------------------------------------------------------
 # Plot daily time series for sleep and activity level data
 st.subheader("Sleep and Activity level time series per date")
 
@@ -165,10 +143,12 @@ else:
     fig = fun.plot_activity_level_timeseries(activity_timeseries_df)
     st.plotly_chart(fig.to_dict())
 
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 st.subheader(f'Averages per day of week')
+
+st.write('In this section we present weekly averages for our main variables to check if we can find any weekly '
+         'habbits.')
+
 # -------------------- Stacked bar chart for the sleep levels duration
 # Get data
 sleep_data_pivot = fun.get_sleep_data_pivot()
@@ -219,8 +199,11 @@ st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 st.subheader(f'Activity status over time')
-# Area chart for the activity levels duration
 
+st.write('In this section we plot the number of minutes spent in each activity level (exclusing Sedentary) over the'
+         'entire period we consider to see if we can find any habbits regarding activity for the wearer.')
+
+# Area chart for the activity levels duration
 # Get data
 activity_df = fun.get_activity_df().drop(columns='Sedentary', axis=1)
 activity_df.set_index('dateTime', inplace=True)
@@ -244,6 +227,9 @@ st.plotly_chart(fig)
 
 # ----------------------------------------------------------------------------------------------------------------------
 st.subheader(f'Correlation Matrix')
+
+st.write('In this part, we explore correlations between our variables.')
+
 correlation_df = fun.heatmapPlots()
 corr_matrix = correlation_df.corr()
 
@@ -313,6 +299,10 @@ with row[1]:
 
 # ----------------------------------------------------------------------------------------------------------------------
 st.subheader(f'AutoRegression for Steps and Sleep Efficiency')
+
+st.write("In this section we have tried to implement Machine Learning to predict the wearer's sleep efficiency and "
+         "number of steps.")
+
 col1, col2 = st.columns(2)
 
 with col1:
