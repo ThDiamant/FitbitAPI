@@ -10,3 +10,11 @@ Documentation for activity timeseries: https://dev.fitbit.com/build/reference/we
 Fitbit WebAPI Explorer: https://dev.fitbit.com/build/reference/web-api/explore/
 
 Fitbit init tutorial: https://towardsdatascience.com/using-the-fitbit-web-api-with-python-f29f119621ea
+
+## Contributors
+|NAME|AEM|
+|----------------|----------------|
+|Costas Tsikinis|94|
+|Pantelis Ypsilantis|104|
+|Thodoros Diamantidis|112|
+|Grigoris Barmpas|122|
