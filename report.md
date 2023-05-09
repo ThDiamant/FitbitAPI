@@ -12,19 +12,21 @@ In this tutorial, we will go through the process of installing and set up MongoD
 
 More specifically this article contains the following sections:
 
-A. Installing and setting up MongoDb.
+A. Installing and setting up MongoDb
 
-B. Creation of Fitbit account.
+B. Creation of Fitbit developer account
 
-C. Fetching of Fitbit data
+C. Interacting with the Fitbit API
 
-D. Saving of data to MongoDb.
+D. Fetching Fitbit data and saving to MongoDb
 
-E. Streamlit setup to display the data
+E. Set up MongoDb and saving Fitbit data to a database
 
-F. Usage of Machine Learning algorithm in order to generate knowledge
+F. Give life to data through Streamlit
 
-G. Implementation of python code to simulate streaming
+G. Streaming Fitbit data via Python
+
+H. Machine Learning
 
 For the full code we used, feel free to check [our Github repo](https://github.com/ThDiamant/FitbitProject.git).
 
@@ -112,7 +114,7 @@ auth2_client = fitbit.Fitbit(client_id = CLIENT_ID,
                              refresh_token = REFRESH_TOKEN)
 ```
 
-## Fetching of Fitbit data and saving to MongoDb
+## Fetching Fitbit data and saving to MongoDb
 
 Now we are set and ready to proceed with fetching the Fitbit data. In this tutorial we will focus on two categories of data, the Sleep related data and the Activity related data or to be more precise the data which have to do with the level of our activity and the data which have to do with the number of our steps.
 
