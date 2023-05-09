@@ -320,7 +320,7 @@ with col1:
    target = st.selectbox('Select Target Variable', targetVars)
 
 with col2:
-   steps = number = st.number_input('Select Forecast Horizon', value = 2)
+   steps = number = st.number_input('Select Forecast Horizon', value=2)
 
 result_ar, _ = fun.AutoReg_TS(correlation_df, target, 1, steps)
 

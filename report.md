@@ -361,14 +361,27 @@ From this plot we see a few things:
 
 Before continuing there is something we should address: since all of our data are sequential data (i.e. timeseries), treating it as simple numeric data and calculating the Pearson correlation between them might seem a little weird for some people and that's fair enough. In doing that, we ignore any correlation regarding the sequence of the data, for example, we cannot see if high activity on one day correlates with better sleep in the next. In order to do that we would need to compare the different time series among themselves, and that's what we do with the next plot:
 
-![TimeSeries Comparison](./images/timeSeriesComparison.PNG)
+![TimeSeries Comparison](./images/timeSeriesComparisonMerged.jpg)
 
-In this plot the user can select any number of variables we examine from the widget at the top and add them to the plot and see how they relate to each other. Furthermore, we added a widget that can perform resampling (the choices being no resampling, 2 days, 3 days, 4 days) in case the user wants to see the timeseries more "smoothed".
+In this plot the user can select any number of variables we examine from the widget at the top and add them to the plot and see how they relate to each other. Furthermore, we added a widget that can perform resampling (the choices being no resampling, 2 days, 3 days, 4 days) in case the user wants to see the timeseries more "smoothed". In addition, all the timeseries have been normalized to take values between 0 and 1 for better visualization.
 
 Some interesting remarks from this plot are:
 
+1. There does seem to be a correlation between steps and sleep efficiency. More specifically, it seems that many days with relatively high number of steps are followed by days with relatively high sleep efficiency score. This is more obvious if we use the 2d (2 days) resample for the plotted time series.
 
+2. Sleep levels seem to be very correlated with each other. We have seen that before, but it's nice to verify it again.
 
+3. Activity levels (light, fair, very active) seem anticorrelated with the sedentary timeseries and correlated with each other as we have seen before.
+
+4. Deep sleep and Light Activity also seem to correlate relatively well. This is the type of activity with which Deep Sleep correlates best, which is a bit surprising: it seems like deep sleep does not necessary require very intense exercise.
+
+Concluding this section, let us summarize our key takeaways:
+
+- The wearer is a relatively active person achieving the 10k steps mark in general. They prefer to exercise either before 12:00 or around 18:00. They are most active on Fridays and Saturdays and the least active on Mondays. Their activiy profile is characterized by days of higher activity followed by a couple of less active days.
+
+- The wearer seems to be getting adequate sleep, although they tend to go to bed relatively late.Around 50% of their sleep is spend in Light sleep stage, with an oscillation between Deep and Light sleep on most days. There doesn't seem to be a day in the week when they sleep best.
+
+- The days they have a high step count, it is mostly due to intense activity. Exercise seems to positively affect Light Sleep the most. Deep sleep and Light Activity also seem to go together.
 
 ## Streaming Fitbit data via Python
 
@@ -405,9 +418,98 @@ while True:
 
 ## Machine Learning
 
+Now that we have succeed in detecting the relationships between our available variables, let’s try to implement some simple Machine Learning techniques and scenarios.
 
+Scenario number one is to implement the AutoRegression model in our data, but let us have a look first about this algorithm. AutoRegression (AR) is a statistical model used in time-series analysis to make predictions about future values of a variable based on its own past values. The model assumes that the future values of the variable can be predicted as a linear combination of its past values, with some error term added to account for any unexplained variation. The order of the AR model indicates the number of past values used to make predictions, and the coefficients of the model are estimated using a method such as maximum likelihood estimation. AR models are commonly used in finance, economics, and other fields where predicting future values based on past trends is important.
 
-The final step of the article has to do with the usage of ML techique to the data. With them the following charts are created:
+Now, let’s jump straight to the implementation.
+Preferably, the time series that the model will get as input should not have any missing 
+values, so we are making sure to deal with that problem first.
+
+``` python
+ts = ts.rolling(window=3, min_periods=1).mean().fillna(method='bfill')
+```
+
+Using a rolling window, we will fill the potential NA values with the mean value of a specified window. Keep in mind that there are many more techniques you could use to fill the NA values.
+
+Next step will be to define our model and train it. We are using the AutoReg class from the statsmodels module, use the pip command to install it to your current python environment.
+
+``` python
+! pip install statsmodels
+```
+
+The inputs will be a dataframe that will have dateTime objects as indexes and containing only one column with the values of our series. Then we need to also define the lags that the algorithm will utilize.
+
+``` python
+from statsmodels.tsa.ar_model import AutoReg
+
+model = AutoReg(ts, lags=n)
+model_fit = model.fit()
+```
+
+A lag of 10 means that the current value of the dependent variable is being regressed on the 10th lagged value of that same variable. In other words, the value from 10 time periods (days in our case) ago is being used as one of the predictors to forecast the current value. The value of 10 is known as the lag order, and it can be adjusted to incorporate more or fewer past values depending on the specific characteristics of the time series being analyzed. A higher lag order will increase the complexity of the model, but it may also improve its accuracy in making predictions.
+
+Last, then only thing left is to get the prediction from our model
+
+``` python
+forecast = model_fit.forecast(steps=10)
+```
+
+The number of steps defines our forecast horizon, meaning how many days after today we want to have forecast. So steps equal to 10 will give us a forecast for the next 10 days.
+
+In our Streamlit app, we have included the flexibility to modify the dependent variable between two options, namely `sleepEfficiency` and `Steps`. Additionally, we have enabled the users to adjust the forecast horizon as per their requirements. This feature provides greater control to the users and helps them to tailor the analysis to their specific needs. The results are the following:
 
 ![AutoRegression](./images/autoRegression.PNG)
+
+As we've observed, by increasing the lag period and forecast horizon, the model is able to capture the seasonality of the time series data more effectively. This means that as we expand the range of historical data used to make predictions, we are able to better capture patterns and trends in the data that may repeat over time, such as daily or weekly cycles.
+
+To leverage the full potential of the available variables and capture their complex relationships, we are taking a step forward and implementing a more advanced approach using neural networks. Specifically, we are exploring the use of Long Short-Term Memory (LSTM) models to analyze the time-series data. LSTM is a type of recurrent neural network that can handle input sequences of varying length and can capture long-term dependencies between variables. By using LSTM, we can improve the accuracy of our predictions and gain deeper insights into the behavior of the time-series data.
+
+To leverage the power of multiple variables, we have decided to focus on the calendar range of the available data. This allows us to experiment with a variety of independent variables and calculate an error metric to evaluate the accuracy of our model. For this analysis, we have selected sleepEfficiency as the dependent variable, and have chosen a few key features from the activity logs as the independent variables. Specifically, we will be using the number of steps and the time of day for each activity stage (fairly active, lightly active,
+sedentary, and very active) to help predict sleep efficiency. 
+
+To test the accuracy of our model, we will be using a rolling test set approach, where the test set consists of the last 5 time periods (days) of our data. This approach allows us to continually evaluate the performance of our model over time and make any necessary adjustments to improve its accuracy.
+
+We need to use the tensorflow library to access the necessary function and classes, again using pip we can install it in our environment.
+
+``` python
+! pip install tensorflow
+```
+
+Now let’s create a simple LSTM model:
+
+``` python
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, LSTM
+
+
+model = Sequential()
+model.add(LSTM(lstm_nodes, activation='relu', input_shape=(1, 5)))
+model.add(Dense(25))
+model.add(Dense(10))
+model.add(Dense(1))
+model.compile(optimizer='adam', loss='mse')
+```
+
+The above code snippet shows the architecture of a neural network that uses a Long Short-Term Memory (LSTM) model. The first line creates an instance of a Sequential model, which is a linear stack of layers. The next line adds an LSTM layer to the model with the specified number of nodes, using the ReLU activation function. The input_shape parameter indicates that the input to the LSTM layer is a sequence of length 1 (i.e., a single time step) and width 5 (i.e., 5 variables). The next three lines add three Dense layers to the model, each with a different number of nodes. The final Dense layer has a single node, which is the output of the model. The model is compiled using the Adam optimizer and the mean squared error (MSE) loss function, which is commonly used for regression problems. Overall, this architecture is designed to process a single time step of input data with five variables, and output a single value that represents the predicted value for the next time step.
+
+Then we need to train our model and get our predictions
+
+``` python
+model.fit(X_train, y_train, epochs=100, batch_size=1, verbose=0)
+y_pred = model.predict(X_test)
+```
+
+To evaluate our results, we will calculate the an error score. The one we select for now is the
+Mean Absolute Percentage Error (MAPE). It is a popular metric used to evaluate the accuracy of forecasting models. It measures the average percentage difference between the forecasted values and the actual values. MAPE is calculated by taking the absolute difference between the forecasted value and the actual value, dividing that by the actual value, and then taking the average of these values across all observations. The resulting value represents the percentage error in the forecast. MAPE is expressed as a percentage, with lower values indicating better accuracy. MAPE is a useful metric for evaluating the performance of forecasting models because it provides a measure of accuracy that is easy to interpret and compare across different datasets and models. However, it can also be sensitive to extreme values, so it is important to consider other metrics as well when evaluating the performance of a model.
+
+In this case, the dynamically defined parameters include the number of nodes in the LSTM layer and the number of epochs for the model training. The results are the following:
+
 ![LSTM](./images/lstm.PNG)
+
+Despite our use of a simple model architecture, we've observed that our forecasts have a low error rate (// add error max and min here please). This is a promising result, as it suggests that even with a relatively basic approach to time series forecasting, we are able to make accurate predictions. It's important to note that model architecture is just one factor that can influence the accuracy of time series forecasts, and there are many other factors that can also play a role, such as the choice of independent variables, the range of historical data used, and the specific techniques used to preprocess and normalize the data. Nevertheless, our initial results are encouraging and suggest that even with limited resources or expertise, it is possible to generate accurate forecasts using a simple model architecture.
+
+Both of the approaches we've discussed in this article are simple examples designed to introduce you to some of the basic techniques for time series forecasting. Of course, there is always room for improvement, and there are many ways to fine-tune and optimize these models to achieve even better results. One important area for improvement is feature selection and engineering, which involves identifying the most relevant independent variables to include in the model, and creating new variables based on insights into the underlying patterns and drivers of the data. Additionally, model hyperparameters can be fine-tuned to further optimize the model's performance on a specific dataset. These are just a few examples of the many ways in which the techniques discussed in this article can be extended and enhanced to produce even more accurate and useful forecasts.
+
+
+
