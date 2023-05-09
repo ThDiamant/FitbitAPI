@@ -17,6 +17,18 @@ DB_NAME = "fitbit"
 DATA_COLLECTION_NAME = "fitbitCollection"
 DATE_FORMAT = "%d %B %Y"
 START_DATE = "2023-03-29"
+SLEEP_LEVEL_ORDER = {
+    "Sedentary": 0,
+    "REM": 1,
+    "Light": 2,
+    "Deep": 3
+}
+ACTIVITY_LEVEL_ORDER = {
+    "Sedentary": 0,
+    "Lightly Active": 1,
+    "Fairly Active": 2,
+    "Very Active": 3
+}
 SLEEP_LEVEL_COLORS = {
     'Awake': 'red',
     'REM': 'lightblue',
@@ -633,10 +645,13 @@ def get_sleep_start_end(dates):
         sleepStartEnd = {}
         sleepStartEnd["date"] = date
         for dType in dTypes:
-            query_result = load_data(dType=dType, date=date)
-            query_sample_data = query_result[0]['data']
-
-            sleepStartEnd[dType] = query_sample_data['value']
+            query_result = list(load_data(dType=dType, date=date))
+            if len(list(query_result)) > 0:
+                query_sample_data = query_result[0]['data']
+                sleepStartEnd[dType] = query_sample_data['value']
+            else:
+                raise ValueError(f":exclamation: No sleep data found. It's possible Fitbit was not worn on "
+                                 f"{date} :exclamation:.")
 
         sleepStartEnd_list.append(sleepStartEnd)
 
@@ -693,7 +708,9 @@ def create_sleep_level_ts_df(sleepLevelTimeSeries):
         "light": "Light",
         "deep": "Deep"
     }
-    sleepLevelTimeSeries_df["sleepStage"] = sleepLevelTimeSeries_df["sleepStage"].apply(lambda x: new_level_names[x])
+
+    sleepLevelTimeSeries_df["sleepStage"] = (sleepLevelTimeSeries_df["sleepStage"]
+                                             .apply(lambda x: new_level_names[x]))
     # Define sleepStage as a categorical variable
     cat_dtype = pd.CategoricalDtype(
         categories=['Deep', 'Light', 'REM', 'Awake'], ordered=True)
@@ -730,7 +747,6 @@ def get_sleep_level_timeseries_df(sleepStartEnd):
 
     # Get time series with time spent in each sleep level
     query_result = fitbitCollection.find(query)
-
     # Expand the time series
     sleepLevelTimeSeries = expand_time_series(query_result, step=10)
     # Create dataframe for expanded time serires
@@ -743,13 +759,19 @@ def plot_sleep_level_time_series(sleepLevelTimeSeries_df, colors):
 
     # Sleep date
     date = sleepLevelTimeSeries_df['dateTime'].iloc[0].strftime("%d %B %Y")
+    # Sleep duration
+    maxTime = sleepLevelTimeSeries_df['dateTime'].max()
+    minTime = sleepLevelTimeSeries_df['dateTime'].min()
+    total_seconds = int((maxTime - minTime).total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
 
     # Create figure
     fig = px.scatter(sleepLevelTimeSeries_df, x="dateTime", y="sleepStageNum",
                      color="sleepStage", color_discrete_map=colors)
 
     fig.update_layout(
-        title=f'Sleep Stages for {date}',
+        title=f'Sleep Stages for {date}. Sleep duration: {hours}h {minutes}min',
         xaxis=dict(title='Time'),
         yaxis=dict(title='Sleep Stage',
                    tickmode='array',
@@ -823,16 +845,35 @@ def get_activity_timeseries_df(fullActivityTimeseries):
     }
     activity_timeseries_df["activityLevel"] = activity_timeseries_df["activityLevel"].apply(
         lambda x: new_level_names[x])
+
+    # Get the activity levels that exist (e.g. Very Active may not be present for a day)
+    existingStages = get_existing_activity_levels(activity_timeseries_df)
+
     # Define sleepStage as a categorical variable
     cat_dtype = pd.CategoricalDtype(
-        categories=['Sedentary', 'Lightly Active', 'Fairly Active', 'Very Active'], ordered=True)
+        categories=existingStages, ordered=True)
     activity_timeseries_df['activityLevel'] = activity_timeseries_df['activityLevel'].astype(cat_dtype)
     # Create numeric column for sleep stages for plotting
     activity_timeseries_df['activityLevelNum'] = activity_timeseries_df['activityLevel'].cat.codes
 
     return activity_timeseries_df
 
-def plot_activity_level_timeseries(activity_timeseries_df, colors):
+def get_existing_activity_levels(activity_timeseries_df):
+    global ACTIVITY_LEVEL_ORDER
+
+    val_counts = activity_timeseries_df['activityLevel'].value_counts()
+    existingStages = list(val_counts[val_counts != 0].index)
+    existingStagesOrd = sorted(existingStages, key=lambda x: ACTIVITY_LEVEL_ORDER[x])
+
+    return existingStagesOrd
+
+def plot_activity_level_timeseries(activity_timeseries_df):
+    global ACTIVITY_LEVEL_COLORS
+
+    # Get the activity levels that exist (e.g. Very Active may not be present for a day)
+    existingStages = get_existing_activity_levels(activity_timeseries_df)
+    colors = {activityStage: ACTIVITY_LEVEL_COLORS[activityStage] for activityStage in existingStages}
+
     fig = px.scatter(activity_timeseries_df, x="dateTime", y="activityLevelNum",
                      color="activityLevel", color_discrete_map=colors)
 
@@ -844,8 +885,8 @@ def plot_activity_level_timeseries(activity_timeseries_df, colors):
         xaxis=dict(title='Time'),
         yaxis=dict(title='Activity Level',
                    tickmode='array',
-                   tickvals=[0, 1, 2, 3],
-                   ticktext=['Sedentary', 'Lightly Active', 'Fairly Active', 'Very Active']),
+                   tickvals=[i for i in range(len(existingStages))],
+                   ticktext=existingStages),
         plot_bgcolor='white',
         height=350
     )
@@ -938,7 +979,6 @@ def get_activity_data_pivot():
     activity_data_pivot = activity_data_pivot.loc[cat_dtype.categories]
 
     return activity_data_pivot
-
 
 def get_bubble_df():
     dType = 'sleep-duration'

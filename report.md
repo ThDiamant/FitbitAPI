@@ -4,9 +4,9 @@ The Internet of Things (IoT) is a network of physical objects, devices, vehicles
 
 One such device is Fitbit. Fitbit is the brand name for a series of smartwatches focused around, you guessed it, fitness. By wearing a fitbit you can have either through the smartwatch itself, or, in more detail, through the corresponding app, a data-based picture about different aspects of your life like sleep and activity.
 
-If you are a tech person though you are not just limited on the visualizations or metrics that the Fitbit app provides. Fitbit allows developers to access a user's data (with the user's concent of course) in order to be able to either explore the data in the way they deem best, or more generally, build their own applications.
+If you are a tech person though you are not just limited on the visualizations or metrics that the Fitbit app provides. Fitbit allows developers to access a user's data (with the user's consent of course) in order to be able to either explore the data in the way they deem best, or more generally, build their own applications or dashboards based on their data.
 
-For this project, our team was given a Fitbit Sense, which was worn by one of the people in the team in order to gather different data. Then, through the Fitbit API we were able to draw the data we wanted and with the help of MongoDb, a document based database, those data in order to process them according to our needs.
+For this project, our team was given a Fitbit Sense, which was worn by one of the people in the team in order to gather different data. Then, through the Fitbit API we were able to draw the data we wanted and with the help of MongoDb, a document based database, save these data in order to process them according to our needs. Finally we created some visualizations presented in a dashboard-like "webage" using the streamlit python module.
 
 In this tutorial, we will go through the process of installing and set up MongoDb, creating Fitbit developer account, saving Fitbit data to a local MongoDb and using the saved data to display the data through python in a Streamlit website.
 
@@ -26,11 +26,13 @@ F. Usage of Machine Learning algorithm in order to generate knowledge
 
 G. Implementation of python code to simulate streaming
 
+For the full code we used, feel free to check [our Github repo](https://github.com/ThDiamant/FitbitProject.git).
+
 ## Installing and setting up MongoDb
 
 To get started, download MongoDB Community Edition from the [official website](https://www.mongodb.com/try/download/community).
 
-Select the desired version and OS system. For Windows execute the MSI file and install MongoDB Compass
+Select the desired version and OS system. For Windows execute the MSI file and install MongoDB Compass (a GUI for exploring your Mongo collections).
 
 Then, we need to add the bin folder (usually the path to the folder will look like `C:\Program Files\MongoDB\Server\6.0\bin`) to the environmental variables of Windows.
 
@@ -68,7 +70,7 @@ First of all you have to [create a Fitbit account](https://accounts.fitbit.com/s
 
 Upon completing this stage, you will be shown a picture like this:
 
-![Application Authentication](AppAuth.PNG)
+![Application Authentication](./images/AppAuth.PNG)
 
 Make sure to note all the information here, **especially** the *OAuth 2.0 Client ID* and *Client Server*, since these will be important for the authentication step in python.
 
@@ -78,14 +80,14 @@ If you are interested in exploring data regarding Breathing rate, SpO2 levels (a
 
 In the Fitbit app on your phone, tap on the "Today" tile, and then make sure to scroll down until you find the "Health Metrics" tile. Tap it, and then allow the device to start collecting the related data. If you don't do this step, even if you are wearing your device, it will **not** gather the data I mentioned until you manually enable it like we just discussed.
 
-![Health Metrics](HealthMetrics.jpg)
+![Health Metrics](./images/HealthMetrics.jpg)
 
 
 ## Interacting with the Fitbit API
 
 In this section we will be using the `python-fitbit` and the `requests` modules to get data from the Fitbit API. This is not the only way to do it, for example, a simple alternative would be to use the [Fitbit Web API Explorer](https://dev.fitbit.com/build/reference/web-api/explore/).
 
-First, we have to proceed with the authorization from the Fitbit API and also define the Fitbit object in python which will be used to make some GET requests to the Fitbit API. In order to perform the authentication we will need the `CLIENT_ID` and `CLIENT_SECRET` which we ad saved during the creation of the Fitbit account. So, to proceed with the authentication the following code should be executed:
+First, we have to proceed with the authorization from the Fitbit API and also define the Fitbit object in python which will be used to make some GET requests to the Fitbit API. In order to perform the authentication we will need the `CLIENT_ID` and `CLIENT_SECRET` which we have saved during the creation of the Fitbit account. So, to proceed with the authentication the following code should be executed:
 
 ``` python
 # Authorize user
@@ -116,11 +118,11 @@ Now we are set and ready to proceed with fetching the Fitbit data. In this tutor
 
 To get the Sleep related data we will use `requests` module, due to the fact that `python-fitbit` module has not been updated for a long time and it is using an older API version which is hardcoded in it's codebase. So, as we need to use version 1.2 instead of version 1 in order to get the Sleep related data in the desired format, we will perform this request manually through `requests` module.
 
-Therefore, what we will do is to use the Fitbit Web API Explorer to get the CURL of the endpoint we want to draw data from, converted it to python using the requests module and get the data we need.
+To do that, we can use the Fitbit Web API Explorer to get the CURL of the endpoint we want to draw data from, convert it into python using the requests module and get the data we need.
 
 An important note here is that there is a rate limit for each user who has consented to share their data. This limit is **150 API requests per hour** and it resets at the top of each hour.
 
-Having said that, we can move on to the construction of the request. We are gonna need a header object for our request which should contains the access token. An example of the request construction is visible below:
+Having said that, we can move on to the construction of the request. We are going to need a header object for our request which should contains the access token. An example of the request construction is visible below:
 
 ``` python
 # Make API get request
@@ -137,11 +139,11 @@ except fitbit.exceptions.HTTPTooManyRequests as e:
     raise Exception(errorMessage)
 ```
 
-The response object contains every information we need for the Sleep related data of the given date. 
+The response object contains every information we need for the Sleep related data of the given date. For the fields it returns as well as an example response you can check the [API documentation](https://dev.fitbit.com/build/reference/web-api/sleep/get-sleep-log-by-date/).
 
-Before checking out how to add those data to MongoDb, let's also have a look on how we fetch the Activity data. In order to fetch them we used the `python-fitbit` module and we will target to specific resources (steps and minutes active/sedentary). The first thing we have to do is to create a list with the target resources in order to minimize the code duplication e.g. "activities/steps", "activities/minutesVeryActive" etc. Then based on the selected resource, we will determine which should be the detail level of the data (1, 5 or 15 minutes). For steps we select 1 minute in have as more detailed information as possible while for the rest resource we select 15 minutes due to the fact that 1 minute will return binary values (1 or 0) based on the activity on this minute.
+Before checking out how to add those data to MongoDb, let's also have a look on how we fetch the Activity data. In order to fetch them we used the `python-fitbit` module and we will target two specific "variables", also known as "resources" in the Fitbit documention: steps and minutes active/sedentary. The first thing we have to do is to create a list with the target resources in order to minimize the code duplication e.g. "activities/steps", "activities/minutesVeryActive" etc. Then based on the selected resource, we will determine which should be the detail level of the data (1, 5 or 15 minutes). For steps we select 1 minute so that we have as much detailed information as possible,while for the rest of the resources we select 15 minutes due to the fact that 1 minute will return binary values (1 or 0) based on the activity on this minute. This is not necessarily a problem, but we thought it would be better to have a timeseries that does not look too "square".
 
-So, to sum-up, the code which we executed in order to perform this task was the following:
+The code which we executed in order to perform the above was the following:
 
 ``` python
 for resource in resources:
@@ -156,7 +158,7 @@ for resource in resources:
 
 ## Set up MongoDb and saving Fitbit data to a database
 
-In this tutorial we will use `pymongo` module in order to communicate with the MongoDb we installed in a previous section. The first thing we have to do, it to establish connection with the database. To do so execute:
+In this tutorial we will use `pymongo` module in order to communicate with the MongoDb we installed in a previous section. The first thing we have to do, is to establish connection with the database. To do so, execute:
 
 ``` python
 import pymongo as mongo
@@ -172,6 +174,8 @@ except mongo.errors.ConnectionFailure as e:
     print('Connection to MongoDB server failed: %s' % e)
 ```
 
+If everything goes well, we will get the message "Connection to MongoDB server successful". If not, then there might be an issue with Mongo, in which case we can try to re-install it to make sure no errors happened there, or, google (or use ChatGPT) in order to find what the specific issue is :).
+
 The next step is to create a new database and a collection in it in order to save the data. To do so, execute the following code:
 
 ``` python
@@ -179,9 +183,9 @@ fitbitDb = client[DB_NAME]
 fitbitCollection = fitbitDb.create_collection(COLLECTION_NAME)
 ```
 
-One last step before inserting the data to our Mongo database is to create an index. This index will help up both in performance and especially in the validity of our data. With the usage of a custom index, we are able to use some fields in order to check if there is already a document with the same values in them. In our case, we can use `resource type` and `dateTime` fields for the index as we already know that if a document has the same value in both fields with a document in our database and tries to be added to the database then this document should be rejected to avoid duplicates.
+In the above we see the global variables `DB_NAME` and `COLLECTION_NAME`. These are simple string variables like `"fitbitDb"` and `"fitbitCollection"` respectively.
 
-So, to do so, we executed the following code:
+One last step before inserting the data to our Mongo database is to create an index. This index will help up both in performance and especially in the validity of our data. With the usage of a custom index, we are able to use some fields in order to check if there is already a document with the same values in them. In our case, we can use `resource type` and `data.dateTime` fields for the index as we already know that a document in our collection is uniquely identified through the combination of these two fields. If for some reason a duplicate record is entered in our Mongo collection, then our program will throw a `DuplicateKeyError` exception to let us know that we re trying to add a duplicate. Using a `try-except` block we can catch this exception and decide what we want to do in the case of duplicates (e.g. ignore it, update the record e.t.c.). The code to define the index is the following:
 
 ``` python
 fitbitIndex = [('type', mongo.ASCENDING), ('data.dateTime', mongo.ASCENDING)]
@@ -191,7 +195,7 @@ if indexName not in [fitbitIndex['name'] for fitbitIndex in collection.list_inde
     collection.create_index(fitbitIndex, name = indexName, unique=True)
 ```
 
-Now we have ensure that we wont have duplicate data to our database so we are ready to proceed with the loading of Fitbit data to MongoDb. By using the manual request as well as the `fitbit-python` module we perform multiple requests for every day starting from 28/03/2023 until 30/04/2023. For each request we manipulate the data in order to create a dictionary with the following format:
+Now that we have taken care of data duplication in our database, we are ready to proceed with loading the data from the Fitbit API to MongoDb. By using the manual request as well as the `fitbit-python` module we perform multiple requests for every day starting from 28/03/2023 until the last day we have data for (this will not necessarily be "today", because we have to return the Fitbit smartwatches back to the teaching assistants). For each request we manipulate the data in order to create a dictionary with the following format:
 
 ![Mongo Data Structure](./images/mongoData1.PNG)
 
@@ -209,13 +213,15 @@ except mongo.errors.DuplicateKeyError:
     pass
 ```
 
+Having all the data stored in our MongoDB collection, we are ready to start creating some visualizations and investigate the wearer's sleep and activity patterns. We do that through the python module called "Streamlit".
+
 ## Give life to data through Streamlit
 
-Since we have completed the extraction of Fitbit data and we have save them to our MongoDb it's time to use Python Streamlit library in order to display them in a meaningful way. 
+Streamlit is an open-source Python library that allows you to build interactive web applications with simple Python scripts. In our project we used it in order to visualize our Fitbit data and present them in a dashboard-like way.
 
-The first step, is to create a new separate file in order to execute it via `streamlit run streamlit_example.py`. This command will launch a web UI page which will run in `http://localhost:8501/`. There is also possibility to assign another domain if you need to run it on a server but we wont analyze this part in the current article.
+In order to begin with streamlit, we create a new separate file in order to execute it via the command line like so: `streamlit run streamlit_example.py`. This command will launch a web UI page which will run in `http://localhost:8501/`. There is also the possibility to assign another domain if you need to run it on a server but we will not analyze this part in the current article.
 
-The next step is to create a pandas dataframe by using the saved data. To fetch the required data, we need to execute a query in our MongoDb. This query should contains the target `type` and other fields like `dateTime`. Also, regex can be used for more complex queries. An example can be shown below:
+The next step is to create a pandas dataframe by using the saved data. To fetch the required data, we need to execute a query in our MongoDb. This query should contain the document `type` and other fields like `data.dateTime`. Also, regex can be used for more complex queries. An example can be shown below:
 
 ``` json
 {
@@ -232,21 +238,21 @@ Lets start with a summarization of our data. The widget below takes under accoun
 
 ```python
 # Define the slider widget for the numeric indicators
-date_range = st.sidebar.slider(
-    "When do you start?",
-    value=(dt.datetime.strptime(START_DATE, DATE_FORMAT), dt.datetime.strptime(END_DATE, DATE_FORMAT)),
-    format="DD/MM/YYYY")
+date_range = st.slider(
+    ":calendar: Please select the date period you want to consider:",
+    min_value=start_date,
+    max_value=end_date,
+    value=(start_date, end_date),
+    format="DD MMM YYYY")
 ```
 
-For those data we calculate the average sleep duration, average sleep time, average sleep efficiency and average steps per day. To display them we use the following code:
+For these data we calculate the average sleep duration, average sleep time, average sleep efficiency and average steps for the entire date range defined by the slider widget. Furthermore, we also created two pie charts to summarize the duration for each activity level and sleep stage for the date range we explore. To display them we use the following code:
 
 ``` python
 tot_avg_sleep_duration = get_avg_sleep_duration(date_range)
-print(tot_avg_sleep_duration)
 
 # ----- Sleep start time (most common one)
 most_common_hour, nNights = fun.get_most_common_sleep_start_time(date_range)
-print(most_common_hour, nNights, date_range)
 
 # ----- Avg sleep efficiency
 avg_sleep_efficiency = fun.get_avg_sleep_eff(date_range)
@@ -274,20 +280,13 @@ The result of this part of code can be shown below:
 
 ![Data Summary](./images/dataSummary.PNG)
 
-The next widget is showing the average minutes per stage of sleep based on the data range which has been used in the slider:
+We can see here that the person wearing the Fitbit seems to be getting adequate sleep in general (given that most experts reccommend 7-9 hours of sleep per night). Additionally this person seems to be a bit of a nightowl sleeping generally around midnight or even past midnight. This person is also quite active achieving the general goal of 10.000 steps per day on average.
 
-![Data Summary](./images/averageMinutesPerStage.PNG)
+Another interesting conclusion is the fact that the distributions of the sleep and activity levels seem to be quite robust. We can see that by selecting different ranges of dates to consider, both with respect to the number of days, as well as the start and end dates. Regarding sleep, we see that Light Sleep accounts for 50% of the sleep stages, with the next larger sleep stage being REM sleep with roughly 20% of the sleep. Similarly, we see that activity of various levels, accounts for more than 25% of the users state, with the rest corresponding to the wearer being sedentary. One first conclusion we could draw, could be that hitting the 10k step mark, equals to being active for 1/4 of the day. On the other hand, we see that even by hitting the 10k steps mark, almost 3/4 of the wearer's day is in a sedentary state, which is one side effect of modern living: as data scientists we sit at work, then return home and sit to watch TV or at the computer etc.
 
-Same technique has been used in order to calculate the average time in minutes which has been spend in each activity stage every day:
-
-![Data Summary](./images/averageMinutesPerActivity.PNG)
-
-In our next two widgets we will use a date picker in order to select the target date. To configure this date picker the following code should be used:
+Having now a general picture, let's get a more detailed view of the data. In our next two visualizations we will use a date picker in order to select the date for which we want to see data. The data we see now, are the time series of the sleep stages and the activity levels throughout the selected date. To configure all this, we use the following code:
 
 ```python
-start_date = fun.to_date(START_DATE)
-end_date = fun.to_date(END_DATE)
-
 # Define date widget
 date = st.date_input(
     label=":calendar: Date selection",
@@ -300,40 +299,73 @@ if date < start_date:
 elif date > end_date:
     st.write(f":exclamation: Selected date cannot be after {end_date.strftime(DATE_FORMAT)}. "
              f"Please select another date.:exclamation:")
+else:
+    <Code that creates the two plots>
 ```
 
 Then we will fetch the data of this date in order to create the mentioned widgets. The first one will display the sleep stages over time for the target date while the second one will display the activity stages over time for the target date. At the end, our widgets will look like the following:
 
-![Sleep Over Time](./images/sleepOverTime.PNG)
+![Intraday Timeseries](./images/intradayTimeSeries.PNG)
 
-![Activity Over Time](./images/activityOverTime.PNG)
+By playing around with the different available dates, we can start drawing some conclusions about the wearer's sleep and activity.
 
-More interesting may come up by extracting the average steps, average duration of each sleep stage and average duration of each activity stage per day of week. By Doing that, we can spot patterns which have to do with the daily habit. So, based on our data the following charts are created:
+Regarding sleep, we see that for most days the "Light Sleep" stage is the dominant one, followed by REM, as we expected from what we saw from the previous visualizations. We also see the following interesting pattern: Deep Sleep (which is the stage of sleep where the body does most of its repair work), seems to happen most times in the first half of sleep, and there seems to be an oscillation between Deep Sleep and the other stages. It looks like there is a form of cycle happening where the wearer goes from Light to Deep sleep, where some times they also stay at REM, or are Awake. We should clarify that "Awake" here does not necessarily mean that the wearer actually wakes up, but that they are not "asleep enough" (i.e. may be turning in bed).
+
+Regarding activity, we can clearly see the hours within the day when the wearer goes to the gym by a sudden spike in activity, expressed mostly through the Fairly and Very Active levels. We can see that some days they go to the gym in the morning/early afternoon, and others in the evening around 17:00-18:00.
+
+One fun observation is the increased activity level around midnight of 29 March. We know for a fact that on that day and hour, the wearer was at a live gig, so we can actually see them enjoying themselves in the crowd by producing high levels of activity!
+
+In the next section of our streamlit dashboard, we took a look at some averages per day of week. More specifically, we have the average steps, average duration of sleep levels and average duration of activity levels per day of week.
+
+![Sleep Stages Per Day](./images/averageStageDurationPerDay.PNG)
+
+From this plot, we can see that although there is some variation between the duration of sleep levels throughout the week, it does not seem to be very significant (a statistical test would be necessary in order to be sure though). What's interesting is the fact that the number of minutes that the wearer spends in the "Awake" stage seems to be the same throughout different days. The same goes for Deep Sleep. Most variation between days comes mostly from the number of minutes in Light sleep.
 
 ![Steps Per Dat](./images/averageStepsPerDay.PNG)
-![Sleep Stages Per Day](./images/averageStageDurationPerDay.PNG)
+
+In this plot a clear pattern emerges: the wearer is increasingly active as the week progresses, with Saturday being the day they are mostly active, closely followed by Friday. Given that most people go out with friends, or take quick weekend trips on these days, this can explain the high number of steps on these days. One thing is clear from this graph though: the wearer does not seem to like Mondays since they seem to be the days they are mostly sedentary! This can be seen even more clearly from the activity level breakdown per day of week:
+
 ![Activity Stages Per Day](./images/averageDurationActivityStagesPerDay.PNG)
 
-Also, we can check the activity on the full scale to understand larger patters:
+We can see that this plot complements the previous one in that the number of minutes the wearer spends sedentary per day is inversly related to the their number of steps. We can also see that they are the most active in the days from Thursday to Saturday, as the number of minutes they spend being very active seems to be the most on these days (which is also what we saw in the previous plot).
+
+Another visualization we came up with, was the following:
 
 ![Activity Status Over Time](./images/activityStatusOverTime.PNG)
 
-Now that we have examine the behavior of each variable lets start the investigation of the relationships between them. First, lets check is the duration of each sleep level is related with the number of steps. The following chart comes up:
+Here we can see the minutes per activity level (excluding the "Sedentary" level), per day for the entire period we consider. With this kind of plot we can check for any larger patterns which could classify as habbits given the sample size we have. A habbit we can see here is that the wearer seems to spend some days in which they are very active, followed by a few days in which they are not as active as opposed to a habbit or lifestyle in which they are more or less consistently active throughout time.
+
+Having taken an extensive look at the sleep and activity habbits of the wearer, we now shift our focus to examining the relationship between these two. We all more or less know that if you are very active you will be more tired and therefore sleep more. Is this the case for the wearer? What about sleep quality? Is it affected by how active the wearer is? Let's try to answer these questions through some more visualizations.
+
+As a first step, we tried to visualize the relationship between the sleep levels' furation and the number of steps, using a 3D plot. This plot is actually interactive in the streamlit app, so we can move the plot around and zoom in or out to get a better idea of how the plotted variables may correlate with each other.
 
 ![Relationship](./images/relationshipSleepDurationSteps.PNG)
 
-Next, lets check how it's variable is related with the others. For this purpose we will use a correlation matrix:
+From this plot there seems to be a positive correlation between the number of minutes spent in REM, Light and Deep sleep which seems reasonable given the robustness of the distribution of the sleep levels we saw in the first barplot. This means that if someone sleeps longer, then they will spend more time in each stage instead of spending more time in a specific sleep stage.
+
+From the bubble fill color, we can also see a slight positive correlation between the number of steps and REM and Light sleep, since they bubble seem to have a darker color for points which correspond to more Light and REM sleep.
+
+Let's take a better look though at the variables under investigation through a correlation matrix.
 
 ![Correlation Matrix](./images/correlationMatrix.PNG)
 
-As a final step, we can create a chart in order to display two or more timeseries. Also, we can apply techniques for smothing their results. By doing that, we can easily check if they are related at all:
+From this plot we see a few things:
+
+1. The different sleep levels are correlated with each other, but the strongest correlations seem to be between Deep and REM and Light and Wake. This means that we can expect to have more Deep sleep if we also have more REM sleep, and similarly for Light sleep and being Awake.
+
+2. Steps is positively correlated with the minutes spent in Light, Fair and a lot of activity (with increasing strength as well), and negatively correlated with the minutes the wearer spent sedentary. Although this seems quite obvious, the fact that the correlation is stronger as the intensity of the activity increases, tells us that probably, when the wearer had larger values for their number of steps per day, they got these steps more from intense exercise, than by lower intensity exercise. This also complements what we previously saw regarding the habbit of the wearer to be very active for a few days and then spent the next couple of days not being very active.
+
+3. Sleep Efficiency is mostly correlated (positively) with Light sleep, although that correlation is not very strong.
+
+4. All sleep levels are inversly correlated with the minutes spent sedentary, especially REM, which is also positively correlated with the number of minutes spent being very active. This could give us an indication towards the "more exercise means better sleep" hypothesis. We could say that exercise seems to mostly impact REM sleep.
+
+Before continuing there is something we should address: since all of our data are sequential data (i.e. timeseries), treating it as simple numeric data and calculating the Pearson correlation between them might seem a little weird for some people and that's fair enough. In doing that, we ignore any correlation regarding the sequence of the data, for example, we cannot see if high activity on one day correlates with better sleep in the next. In order to do that we would need to compare the different time series among themselves, and that's what we do with the next plot:
 
 ![TimeSeries Comparison](./images/timeSeriesComparison.PNG)
 
-The final step of the article has to do with the usage of ML techique to the data. With them the following charts are created:
+In this plot the user can select any number of variables we examine from the widget at the top and add them to the plot and see how they relate to each other. Furthermore, we added a widget that can perform resampling (the choices being no resampling, 2 days, 3 days, 4 days) in case the user wants to see the timeseries more "smoothed".
 
-![AutoRegression](./images/autoRegression.PNG)
-![LSTM](./images/lstm.PNG)
+Some interesting remarks from this plot are:
 
 
 
@@ -371,4 +403,11 @@ while True:
     tm.sleep(15*60)
 ```
 
-pip install plotly scikit-learn scipy matplotlib
+## Machine Learning
+
+
+
+The final step of the article has to do with the usage of ML techique to the data. With them the following charts are created:
+
+![AutoRegression](./images/autoRegression.PNG)
+![LSTM](./images/lstm.PNG)
