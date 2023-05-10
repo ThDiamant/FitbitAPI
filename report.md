@@ -461,7 +461,7 @@ The number of steps defines our forecast horizon, meaning how many days after to
 
 In our Streamlit app, we have included the flexibility to modify the dependent variable between two options, namely `sleepEfficiency` and `Steps`. Additionally, we have enabled the users to adjust the forecast horizon as per their requirements. This feature provides greater control to the users and helps them to tailor the analysis to their specific needs. The results are the following:
 
-![AutoRegression](./images/autoRegression.PNG)
+![AutoRegression](./images/autoRegression.png)
 
 As we've observed, by increasing the lag period and forecast horizon, the model is able to capture the seasonality of the time series data more effectively. This means that as we expand the range of historical data used to make predictions, we are able to better capture patterns and trends in the data that may repeat over time, such as daily or weekly cycles.
 
@@ -507,9 +507,9 @@ Mean Absolute Percentage Error (MAPE). It is a popular metric used to evaluate t
 
 In this case, the dynamically defined parameters include the number of nodes in the LSTM layer and the number of epochs for the model training. The results are the following:
 
-![LSTM](./images/lstm.PNG)
+![LSTM](./images/lstm.png)
 
-Despite our use of a simple model architecture, we've observed that our forecasts have a low error rate (// add error max and min here please). This is a promising result, as it suggests that even with a relatively basic approach to time series forecasting, we are able to make accurate predictions. It's important to note that model architecture is just one factor that can influence the accuracy of time series forecasts, and there are many other factors that can also play a role, such as the choice of independent variables, the range of historical data used, and the specific techniques used to preprocess and normalize the data. Nevertheless, our initial results are encouraging and suggest that even with limited resources or expertise, it is possible to generate accurate forecasts using a simple model architecture.
+Despite our use of a simple model architecture, we've observed that our forecasts have a low error rate. This is a promising result, as it suggests that even with a relatively basic approach to time series forecasting, we are able to make accurate predictions. It's important to note that model architecture is just one factor that can influence the accuracy of time series forecasts, and there are many other factors that can also play a role, such as the choice of independent variables, the range of historical data used, and the specific techniques used to preprocess and normalize the data. Nevertheless, our initial results are encouraging and suggest that even with limited resources or expertise, it is possible to generate accurate forecasts using a simple model architecture.
 
 Both of the approaches we've discussed in this article are simple examples designed to introduce you to some of the basic techniques for time series forecasting. Of course, there is always room for improvement, and there are many ways to fine-tune and optimize these models to achieve even better results. One important area for improvement is feature selection and engineering, which involves identifying the most relevant independent variables to include in the model, and creating new variables based on insights into the underlying patterns and drivers of the data. Additionally, model hyperparameters can be fine-tuned to further optimize the model's performance on a specific dataset. These are just a few examples of the many ways in which the techniques discussed in this article can be extended and enhanced to produce even more accurate and useful forecasts.
 
