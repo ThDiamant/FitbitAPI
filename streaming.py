@@ -6,10 +6,13 @@ import functions as fun
 import fitbit
 import pymongo as mongo
 import datetime as dt
+from globals import *
+
+
 
 # Enter CLIENT_ID and CLIENT_SECRET
-CLIENT_ID = '23QRRC'
-CLIENT_SECRET = '51922a48a2df4434cc20afaac4ee97b8'
+# CLIENT_ID = '23QRRC'
+# CLIENT_SECRET = '51922a48a2df4434cc20afaac4ee97b8'
 
 # Authorize user
 server = Oauth2.OAuth2Server(CLIENT_ID, CLIENT_SECRET)
@@ -20,12 +23,12 @@ REFRESH_TOKEN = str(server.fitbit.client.session.token['refresh_token'])
 EXPIRES_AT = str(server.fitbit.client.session.token['expires_at'])
 
 # Create Fitbit object which will be used to get the data
-auth2_client = fitbit.Fitbit(client_id = CLIENT_ID,
-                             client_secret = CLIENT_SECRET,
-                             expires_at = EXPIRES_AT,
-                             oauth2 = True,
-                             access_token = ACCESS_TOKEN,
-                             refresh_token = REFRESH_TOKEN)
+auth2_client = fitbit.Fitbit(client_id=CLIENT_ID,
+                             client_secret=CLIENT_SECRET,
+                             expires_at=EXPIRES_AT,
+                             oauth2=True,
+                             access_token=ACCESS_TOKEN,
+                             refresh_token=REFRESH_TOKEN)
 
 client = mongo.MongoClient('localhost', 27017)
 

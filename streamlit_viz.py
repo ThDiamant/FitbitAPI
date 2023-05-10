@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objs as go
 from sklearn.preprocessing import MinMaxScaler
 import functions as fun
+from globals import *
 
 # Options to be able to see all columns when printing dfs
 pd.options.display.width= None
@@ -13,7 +14,7 @@ pd.set_option('display.max_rows', 3000)
 pd.set_option('display.max_columns', 3000)
 
 # Globals
-from functions import DATE_FORMAT, SLEEP_LEVEL_COLORS, ACTIVITY_LEVEL_COLORS, STEPS_COLOR
+# from functions import DATE_FORMAT, SLEEP_LEVEL_COLORS, ACTIVITY_LEVEL_COLORS, STEPS_COLOR
 START_DATE, END_DATE = fun.get_min_max_dates()
 # Number of days considered
 NUM_DAYS = (dt.datetime.strptime(END_DATE, DATE_FORMAT) - dt.datetime.strptime(START_DATE, DATE_FORMAT)).days
