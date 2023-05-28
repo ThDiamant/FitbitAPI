@@ -2,6 +2,9 @@
 
 In this project we use the Fitbit API to gather data from a Fitbit Sense that one of our team members wore, save the data to a MongoDB collection and then create some visualizations using Streamlit.
 
+* Check documents/report.md for the full report!
+* Check documents/FitBit-Presentation.pptx for a quick pitch-like presentation!
+
 ## Contributors
 |NAME|Github handle|
 |----------------|----------------|
