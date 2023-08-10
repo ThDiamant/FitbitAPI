@@ -12,21 +12,14 @@ In this tutorial, we will go through the process of installing and set up MongoD
 
 More specifically this article contains the following sections:
 
-A. Installing and setting up MongoDb
-
-B. Creation of Fitbit developer account
-
-C. Interacting with the Fitbit API
-
-D. Fetching Fitbit data and saving to MongoDb
-
-E. Set up MongoDb and saving Fitbit data to a database
-
-F. Give life to data through Streamlit
-
-G. Streaming Fitbit data via Python
-
-H. Machine Learning
+- [Installing and setting up MongoDb](#installing-and-setting-up-mongodb)
+- [Creation of Fitbit developer account](#creation-of-fitbit-developer-account)
+- [Interacting with the Fitbit API](#interacting-with-the-fitbit-api)
+- [Fetching Fitbit data and saving to MongoDb](#fetching-fitbit-data-and-saving-to-mongodb)
+- [Set up MongoDb and saving Fitbit data to a database](#set-up-mongodb-and-saving-fitbit-data-to-a-database)
+- [Give life to data through Streamlit](#give-life-to-data-through-streamlit)
+- [Streaming Fitbit data via Python](#streaming-fitbit-data-via-python)
+- [Machine Learning](#machine-learning)
 
 For the full code we used, feel free to check [our Github repo](https://github.com/ThDiamant/FitbitProject.git).
 
