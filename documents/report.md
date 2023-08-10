@@ -72,7 +72,9 @@ First of all you have to [create a Fitbit account](https://accounts.fitbit.com/s
 
 Upon completing this stage, you will be shown a picture like this:
 
-![Application Authentication](./images/AppAuth.PNG)
+<p align="center">
+    <img src="./../images/AppAuth.PNG" alt="Application Authentication"/>
+</p>
 
 Make sure to note all the information here, **especially** the *OAuth 2.0 Client ID* and *Client Server*, since these will be important for the authentication step in python.
 
@@ -82,7 +84,9 @@ If you are interested in exploring data regarding Breathing rate, SpO2 levels (a
 
 In the Fitbit app on your phone, tap on the "Today" tile, and then make sure to scroll down until you find the "Health Metrics" tile. Tap it, and then allow the device to start collecting the related data. If you don't do this step, even if you are wearing your device, it will **not** gather the data I mentioned until you manually enable it like we just discussed.
 
-![Health Metrics](./images/HealthMetrics.jpg)
+<p align="center">
+    <img src="./../images/HealthMetrics.jpg" alt="Health Metrics"/>
+</p>
 
 
 ## Interacting with the Fitbit API
@@ -199,7 +203,9 @@ if indexName not in [fitbitIndex['name'] for fitbitIndex in collection.list_inde
 
 Now that we have taken care of data duplication in our database, we are ready to proceed with loading the data from the Fitbit API to MongoDb. By using the manual request as well as the `fitbit-python` module we perform multiple requests for every day starting from 28/03/2023 until the last day we have data for (this will not necessarily be "today", because we have to return the Fitbit smartwatches back to the teaching assistants). For each request we manipulate the data in order to create a dictionary with the following format:
 
-![Mongo Data Structure](./images/mongoData1.PNG)
+<p align="center">
+    <img src="./../images/mongoData1.PNG" alt="Mongo Data Structure"/>
+</p>
 
 Each object represents a document. The last part to save a document to our database is to use the collection which was created before. So, by using this collection we execute the following code for each document:
 
@@ -280,7 +286,9 @@ with col4:
 
 The result of this part of code can be shown below:
 
-![Data Summary](./images/dataSummary.PNG)
+<p align="center">
+    <img src="./../images/dataSummary.PNG" alt="Data Summary"/>
+</p>
 
 We can see here that the person wearing the Fitbit seems to be getting adequate sleep in general (given that most experts reccommend 7-9 hours of sleep per night). Additionally this person seems to be a bit of a nightowl sleeping generally around midnight or even past midnight. This person is also quite active achieving the general goal of 10.000 steps per day on average.
 
@@ -307,7 +315,9 @@ else:
 
 Then we will fetch the data of this date in order to create the mentioned widgets. The first one will display the sleep stages over time for the target date while the second one will display the activity stages over time for the target date. At the end, our widgets will look like the following:
 
-![Intraday Timeseries](./images/intradayTimeSeries.PNG)
+<p align="center">
+    <img src="./../images/intradayTimeSeries.PNG" alt="Intraday Timeseries"/>
+</p>
 
 By playing around with the different available dates, we can start drawing some conclusions about the wearer's sleep and activity.
 
@@ -319,21 +329,29 @@ One fun observation is the increased activity level around midnight of 29 March.
 
 In the next section of our streamlit dashboard, we took a look at some averages per day of week. More specifically, we have the average steps, average duration of sleep levels and average duration of activity levels per day of week.
 
-![Sleep Stages Per Day](./images/averageStageDurationPerDay.PNG)
+<p align="center">
+    <img src="./../images/averageStageDurationPerDay.PNG" alt="Sleep Stages Per Day"/>
+</p>
 
 From this plot, we can see that although there is some variation between the duration of sleep levels throughout the week, it does not seem to be very significant (a statistical test would be necessary in order to be sure though). What's interesting is the fact that the number of minutes that the wearer spends in the "Awake" stage seems to be the same throughout different days. The same goes for Deep Sleep. Most variation between days comes mostly from the number of minutes in Light sleep.
 
-![Steps Per Dat](./images/averageStepsPerDay.PNG)
+<p align="center">
+    <img src="./../images/averageStepsPerDay.PNG" alt="Steps Per Dat"/>
+</p>
 
 In this plot a clear pattern emerges: the wearer is increasingly active as the week progresses, with Saturday being the day they are mostly active, closely followed by Friday. Given that most people go out with friends, or take quick weekend trips on these days, this can explain the high number of steps on these days. One thing is clear from this graph though: the wearer does not seem to like Mondays since they seem to be the days they are mostly sedentary! This can be seen even more clearly from the activity level breakdown per day of week:
 
-![Activity Stages Per Day](./images/averageDurationActivityStagesPerDay.PNG)
+<p align="center">
+    <img src="./../images/averageDurationActivityStagesPerDay.PNG" alt="Activity Stages Per Day"/>
+</p>
 
 We can see that this plot complements the previous one in that the number of minutes the wearer spends sedentary per day is inversly related to the their number of steps. We can also see that they are the most active in the days from Thursday to Saturday, as the number of minutes they spend being very active seems to be the most on these days (which is also what we saw in the previous plot).
 
 Another visualization we came up with, was the following:
 
-![Activity Status Over Time](./images/activityStatusOverTime.PNG)
+<p align="center">
+    <img src="./../images/activityStatusOverTime.PNG" alt="Activity Status Over Time"/>
+</p>
 
 Here we can see the minutes per activity level (excluding the "Sedentary" level), per day for the entire period we consider. With this kind of plot we can check for any larger patterns which could classify as habbits given the sample size we have. A habbit we can see here is that the wearer seems to spend some days in which they are very active, followed by a few days in which they are not as active as opposed to a habbit or lifestyle in which they are more or less consistently active throughout time.
 
@@ -341,7 +359,9 @@ Having taken an extensive look at the sleep and activity habbits of the wearer, 
 
 As a first step, we tried to visualize the relationship between the sleep levels' furation and the number of steps, using a 3D plot. This plot is actually interactive in the streamlit app, so we can move the plot around and zoom in or out to get a better idea of how the plotted variables may correlate with each other.
 
-![Relationship](./images/relationshipSleepDurationSteps.PNG)
+<p align="center">
+    <img src="./../images/relationshipSleepDurationSteps.PNG" alt="Relationship"/>
+</p>
 
 From this plot there seems to be a positive correlation between the number of minutes spent in REM, Light and Deep sleep which seems reasonable given the robustness of the distribution of the sleep levels we saw in the first barplot. This means that if someone sleeps longer, then they will spend more time in each stage instead of spending more time in a specific sleep stage.
 
@@ -349,7 +369,9 @@ From the bubble fill color, we can also see a slight positive correlation betwee
 
 Let's take a better look though at the variables under investigation through a correlation matrix.
 
-![Correlation Matrix](./images/correlationMatrix.PNG)
+<p align="center">
+    <img src="./../images/correlationMatrix.PNG" alt="Correlation Matrix"/>
+</p>
 
 From this plot we see a few things:
 
@@ -363,7 +385,9 @@ From this plot we see a few things:
 
 Before continuing there is something we should address: since all of our data are sequential data (i.e. timeseries), treating it as simple numeric data and calculating the Pearson correlation between them might seem a little weird for some people and that's fair enough. In doing that, we ignore any correlation regarding the sequence of the data, for example, we cannot see if high activity on one day correlates with better sleep in the next. In order to do that we would need to compare the different time series among themselves, and that's what we do with the next plot:
 
-![TimeSeries Comparison](./images/timeSeriesComparisonMerged.jpg)
+<p align="center">
+    <img src="./../images/timeSeriesComparisonMerged.jpg" alt="TimeSeries Comparison"/>
+</p>
 
 In this plot the user can select any number of variables we examine from the widget at the top and add them to the plot and see how they relate to each other. Furthermore, we added a widget that can perform resampling (the choices being no resampling, 2 days, 3 days, 4 days) in case the user wants to see the timeseries more "smoothed". In addition, all the timeseries have been normalized to take values between 0 and 1 for better visualization.
 
@@ -461,7 +485,9 @@ The number of steps defines our forecast horizon, meaning how many days after to
 
 In our Streamlit app, we have included the flexibility to modify the dependent variable between two options, namely `sleepEfficiency` and `Steps`. Additionally, we have enabled the users to adjust the forecast horizon as per their requirements. This feature provides greater control to the users and helps them to tailor the analysis to their specific needs. The results are the following:
 
-![AutoRegression](./images/autoRegression.png)
+<p align="center">
+    <img src="./../images/autoRegression.png" alt="AutoRegression"/>
+</p>
 
 As we've observed, by increasing the lag period and forecast horizon, the model is able to capture the seasonality of the time series data more effectively. This means that as we expand the range of historical data used to make predictions, we are able to better capture patterns and trends in the data that may repeat over time, such as daily or weekly cycles.
 
@@ -507,7 +533,9 @@ Mean Absolute Percentage Error (MAPE). It is a popular metric used to evaluate t
 
 In this case, the dynamically defined parameters include the number of nodes in the LSTM layer and the number of epochs for the model training. The results are the following:
 
-![LSTM](./images/lstm.png)
+<p align="center">
+    <img src="./../images/lstm.png" alt="LSTM"/>
+</p>
 
 Despite our use of a simple model architecture, we've observed that our forecasts have a low error rate. This is a promising result, as it suggests that even with a relatively basic approach to time series forecasting, we are able to make accurate predictions. It's important to note that model architecture is just one factor that can influence the accuracy of time series forecasts, and there are many other factors that can also play a role, such as the choice of independent variables, the range of historical data used, and the specific techniques used to preprocess and normalize the data. Nevertheless, our initial results are encouraging and suggest that even with limited resources or expertise, it is possible to generate accurate forecasts using a simple model architecture.
 
