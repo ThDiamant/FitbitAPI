@@ -5,10 +5,15 @@ In this project we use the Fitbit API to gather data from a Fitbit Sense that on
 * For more details, please check out the [full report](documents/report.md).
 * For a quick pitch-like presentation, please check [here](documents/FitBit-Presentation.pptx).
 
-## Table of contents
+## Contents
 - [Contributors](#contributors)
 - [Key takeaways](#key-takeaways)
 - [Streamlit app - Details](#streamlit-app-details)
+  - [General Information about Sleep and Activity](#general-information-about-sleep-and-activity)
+  - [Sleep and Activity time series per date](#sleep-and-activity-time-series-per-date)
+  - [Averages per day of week](#averages-per-day-of-week)
+  - [Activity status over time](#activity-status-over-time)
+  - [Detailed Time Series comparision](#detailed-time-series-comparision)
 - [Usefull links](#usefull-links)
 
 
@@ -30,6 +35,10 @@ In this project we use the Fitbit API to gather data from a Fitbit Sense that on
 
 ## Streamlit app - Details
 
+Let us see in more detail how we arrive to our key takeaways, as well as any other conclusions.
+
+### General Information about Sleep and Activity
+
 <p align="center">
   <img src="./images/Streamlit-1.PNG" />
 </p>
@@ -42,6 +51,7 @@ After selecting different date ranges, we gather the following key insights:
 
 * Active person: achieving the general goal of 10.000 steps per day on average. This translates to being active for a bit more than 1/4 of the day, but still almost 3/4 of the wearer's day is in a sedentary state (!).
 
+### Sleep and Activity time series per date
 
 <p align="center">
   <img src="./images/Streamlit-2.PNG" />
@@ -55,6 +65,8 @@ After examining the data for different dates through the widget, we can see the 
 
 > **_Fun observation_**!
 >> Increased activity level around midnight of 29 March. We know for a fact that on that day and hour, the wearer was at a live gig, so we can actually see them enjoying themselves in the crowd by producing high levels of activity!
+
+### Averages per day of week
 
 <p align="center">
   <img src="./images/Streamlit-3.PNG" />
@@ -76,6 +88,7 @@ Several interesting conclusions:
     
     * Activity on active days seems to come from being "Very Active".
 
+### Activity status over time
 
 <p align="center">
   <img src="./images/Streamlit-4.PNG" />
@@ -84,6 +97,7 @@ Several interesting conclusions:
 > **_Possible pattern_**!
 >> The wearer seems to spend some days in which they are very active, followed by a few days in which they are not as active as opposed to a habbit or lifestyle in which they are more or less consistently active throughout time.
 
+### Detailed Time Series comparision
 
 <p align="center">
   <img src="./images/timeSeriesComparisonMerged.jpg" />
